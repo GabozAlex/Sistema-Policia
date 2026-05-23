@@ -118,3 +118,28 @@ python src\ui.py
 pause
 ```
 3. Guarda el archivo. Al hacer doble clic se abrirá el programa.
+
+---
+
+## Opcional: Crear un Ejecutable Portable (.exe)
+
+Si quieres llevar el programa a cualquier PC **sin instalar Python**:
+
+1. En la PC con Windows, abre el Símbolo del sistema en la carpeta del proyecto
+2. Ejecuta:
+```cmd
+build.bat
+```
+3. Esto instalará PyInstaller y generará `dist\SistemaPolicia.exe`
+4. Ese .exe funciona en cualquier Windows 10 sin necesidad de Python ni dependencias
+
+## Opcional: Crear un Instalador
+
+Después de generar el .exe con el paso anterior:
+
+1. Descarga e instala **Inno Setup** desde https://jrsoftware.org/isinfo.php
+2. Abre el archivo `installer.iss` incluido en el proyecto
+3. Haz clic en **Build → Compile**
+4. El instalador se generará en la carpeta `installer\`
+
+El instalador crea acceso directo en el escritorio y menú inicio, y permite desinstalar desde "Agregar o quitar programas" de Windows.
