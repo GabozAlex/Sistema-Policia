@@ -1,0 +1,25 @@
+=== USUARIOS DEL SISTEMA ===
+================================
+
+Usuario:     subadmin
+Contrasena:  sub123
+Rol:         subadmin
+Permisos:    Ver, Crear, Modificar, Restaurar, Ver auditoria (no gestiona usuarios)
+
+Usuario:     visor
+Contrasena:  visor123
+Rol:         viewer
+Permisos:    Solo ver datos
+
+Usuario:     editor
+Contrasena:  editor123
+Rol:         editor
+Permisos:    Ver y crear funcionarios
+
+Usuario:     modificador
+Contrasena:  mod123
+Rol:         modifier
+Permisos:    Ver, crear y modificar funcionarios
+
+================================
+Para mas informacion, abra la seccion "Ayuda" dentro del programa.
