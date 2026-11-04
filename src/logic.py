@@ -704,10 +704,25 @@ def eliminar_catalogo(tipo, valor):
 def solo_digitos(valor):
     return "".join(c for c in str(valor or "") if c.isdigit())
 
-def normalizar_cedula(valor):
-    """Devuelve 'V-<hasta 8 digitos>' o '' si no hay digitos."""
-    digitos = solo_digitos(valor)[:8]
-    return f"V-{digitos}" if digitos else ""
+def separar_cedula(valor, tipo=None):
+    """Devuelve (tipo, digitos) de una cedula. El tipo explicito tiene prioridad;
+    si no, se detecta el prefijo V/E/J del valor."""
+    s = str(valor or "").strip().upper()
+    if s[:2] in ("V-", "E-", "J-") or (s[:1] in ("V", "E", "J") and len(s) > 1 and s[1:].isdigit()):
+        detectado = s[0]
+        s = s[1:].lstrip("-")
+        if tipo is None:
+            tipo = detectado
+    t = str(tipo or "V").strip().upper()
+    if t not in ("V", "E", "J"):
+        t = "V"
+    digitos = solo_digitos(s)[:8]
+    return t, digitos
+
+def normalizar_cedula(valor, tipo=None):
+    """Devuelve '<V|E|J>-<hasta 8 digitos>' o '' si no hay digitos."""
+    t, digitos = separar_cedula(valor, tipo)
+    return f"{t}-{digitos}" if digitos else ""
 
 def dividir_telefono(valor):
     """Separa (prefijo, abonado) de formatos 0412..., +58..., 412...

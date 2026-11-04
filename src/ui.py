@@ -9,7 +9,7 @@ from logic import (Funcionario, Familiar, cargar_funcionarios, guardar_funcionar
                    cargar_catalogo, valores_catalogo, detalle_de_lugar, lugar_por_detalle,
                    cargar_operadoras, agregar_catalogo, eliminar_catalogo,
                    agregar_operadora, eliminar_operadora,
-                   normalizar_cedula, dividir_telefono, solo_digitos)
+                   normalizar_cedula, separar_cedula, dividir_telefono, solo_digitos)
 
 
 def _detectar_fuente():
@@ -1008,10 +1008,24 @@ class UI:
         return frame
 
     def _validar_cedula(self, propuesto):
-        return propuesto == "" or (propuesto.isdigit() and len(propuesto) <= 8)
+        return all(c.isdigit() or c == "." for c in propuesto) and len(solo_digitos(propuesto)) <= 8
+
+    def _validar_nombre(self, propuesto):
+        return all(c.isalpha() or c.isspace() or c in "'-." for c in propuesto)
 
     def _validar_telefono(self, propuesto):
-        return propuesto == "" or (propuesto.isdigit() and len(propuesto) <= 7)
+        return all(c.isdigit() or c == "-" for c in propuesto) and len(solo_digitos(propuesto)) <= 7
+
+    def _formatear_telefono(self, valor):
+        d = solo_digitos(valor)[:7]
+        return f"{d[:3]}-{d[3:]}" if len(d) > 3 else d
+
+    def _formatear_telefono_event(self, event=None):
+        valor = self.input_telefono.get()
+        fmt = self._formatear_telefono(valor)
+        if valor != fmt:
+            self.input_telefono.delete(0, END)
+            self.input_telefono.insert(0, fmt)
 
     def _crear_tab_personales(self):
         p = self.tab_personales
@@ -1032,11 +1046,14 @@ class UI:
                 widgets.append(e)
             return widgets
 
-        # Cedula: prefijo "V-" fijo + hasta 8 digitos
+        # Cedula: selector de tipo (V/E/J) + hasta 8 digitos
         Label(p, text="Cedula:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
         ced_frame = Frame(p, bg=self.bg_card, highlightbackground=self.border, highlightthickness=1)
         ced_frame.grid(row=2, column=0, columnspan=2, sticky=EW, padx=(0, 10))
-        Label(ced_frame, text="V-", font=(FONT, 11, "bold"), bg=self.bg_card, fg=self.text).pack(side=LEFT, padx=(6, 2))
+        self.input_cedula_tipo = ttk.Combobox(
+            ced_frame, values=["V", "E", "J"], font=(FONT, 11), state="readonly", width=3)
+        self.input_cedula_tipo.set("V")
+        self.input_cedula_tipo.pack(side=LEFT, padx=(4, 2))
         self.input_cedula = Entry(
             ced_frame, font=(FONT, 11), relief="flat", borderwidth=0, highlightthickness=0,
             validate="key", validatecommand=(self.root.register(self._validar_cedula), "%P"))
@@ -1044,12 +1061,14 @@ class UI:
 
         Label(p, text="Nombre:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
         self.input_nombre = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
-                                  highlightbackground=self.border, highlightthickness=1)
+                                  highlightbackground=self.border, highlightthickness=1,
+                                  validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         self.input_nombre.grid(row=2, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
         Label(p, text="Apellido:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=4, sticky=W, pady=(6, 2))
         self.input_apellido = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
-                                    highlightbackground=self.border, highlightthickness=1)
+                                    highlightbackground=self.border, highlightthickness=1,
+                                    validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         self.input_apellido.grid(row=2, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
         Label(p, text="Fecha Nacimiento:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=0, sticky=W, pady=(6, 2))
@@ -1076,6 +1095,8 @@ class UI:
             highlightbackground=self.border, highlightthickness=1,
             validate="key", validatecommand=(self.root.register(self._validar_telefono), "%P"))
         self.input_telefono.grid(row=4, column=5, sticky=EW, padx=(0, 10), ipady=3)
+        self.input_telefono.bind("<FocusOut>", self._formatear_telefono_event)
+        self.input_telefono.bind("<Return>", self._formatear_telefono_event)
 
         self.input_peso, self.input_altura = campo_fila(5, ["Peso (kg):", "Altura (m):"], colspan=2)
         Label(p, text="Estado Civil:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=5, column=4, sticky=W, pady=(6, 2))
@@ -1553,7 +1574,9 @@ class UI:
             return cb
 
         inputs["nombre"] = make_campo(0, "Nombre:", 0)
+        inputs["nombre"].config(validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         inputs["apellido"] = make_campo(0, "Apellido:", 2)
+        inputs["apellido"].config(validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         inputs["parentesco"] = make_combobox(0, "Parentesco:", 4, valores_catalogo("parentesco"))
         inputs["edad"] = make_campo(2, "Edad:", 0)
         inputs["genero"] = make_combobox(2, "Genero:", 2, ["Masculino", "Femenino"])
@@ -1588,12 +1611,12 @@ class UI:
         self.input_pueblo.set("")
 
     def guardar_funcionario(self):
-        cedula = normalizar_cedula(self.input_cedula.get())
+        cedula = normalizar_cedula(self.input_cedula.get(), self.input_cedula_tipo.get())
         if not cedula:
             messagebox.showwarning("Error", "La cedula es obligatoria", parent=self.root)
             return
 
-        telefono = self.input_telefono.get().strip()
+        telefono = solo_digitos(self.input_telefono.get())
         if telefono and len(telefono) != 7:
             messagebox.showwarning("Error", "El telefono debe tener exactamente 7 digitos", parent=self.root)
             return
@@ -1719,9 +1742,12 @@ class UI:
     def _cargar_datos_en_formulario(self, f):
         self.mostrar_registrar_usuario(funcionario=f)
 
+        tipo_ced, num_ced = separar_cedula(f.cedula)
+        self.input_cedula_tipo.set(tipo_ced)
+        self.input_cedula_tipo.config(state="disabled")
         self.input_cedula.config(state=NORMAL)
         self.input_cedula.delete(0, END)
-        self.input_cedula.insert(0, solo_digitos(f.cedula)[:8])
+        self.input_cedula.insert(0, num_ced)
         self.input_cedula.config(state="readonly")
 
         self.input_nombre.delete(0, END); self.input_nombre.insert(0, f.nombre)
@@ -1734,7 +1760,8 @@ class UI:
         if not (len(op_guardada) == 3 and op_guardada.isdigit()):
             op_guardada = prefijo
         self.input_operadora.set(op_guardada)
-        self.input_telefono.delete(0, END); self.input_telefono.insert(0, abonado)
+        self.input_telefono.delete(0, END)
+        self.input_telefono.insert(0, self._formatear_telefono(abonado))
 
         self.input_peso.delete(0, END); self.input_peso.insert(0, f.peso)
         self.input_altura.delete(0, END); self.input_altura.insert(0, f.altura)
