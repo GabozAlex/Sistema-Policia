@@ -1197,7 +1197,6 @@ class UI:
         self._plan_entries["fecha_gestion"] = self._crear_date_picker(r)
         self._plan_entries["fecha_gestion"].pack(side=LEFT, ipady=3, fill=X, expand=True)
 
-        self.input_condicion_vivienda = combobox_row(f, "Condicion:", valores_catalogo("condicion_vivienda"))
         self.input_fecha_gestion = self._plan_entries["fecha_gestion"]
 
     def _crear_tab_estado_vivienda(self):
