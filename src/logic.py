@@ -45,6 +45,7 @@ def _crear_tablas():
             cedula TEXT PRIMARY KEY,
             nombre TEXT, apellido TEXT, fecha_nacimiento TEXT, edad TEXT,
             telefono TEXT, operadora TEXT, peso TEXT, altura TEXT, genero TEXT, estado_civil TEXT, residencia TEXT,
+            residencia_municipio TEXT, residencia_pueblo TEXT,
             jerarquia TEXT, lugar_presta_servicio TEXT, tiempo_servicio TEXT, salario_mensual TEXT,
             terreno_propio TEXT, ubicacion_terreno TEXT, condicion_vivienda TEXT,
             necesidad_vivienda TEXT, organismo_publico TEXT, organismo_privado TEXT,
@@ -233,6 +234,8 @@ def _crear_tablas():
         "ALTER TABLE funcionarios ADD COLUMN disponibilidad_economica TEXT DEFAULT '0'",
         "ALTER TABLE funcionarios ADD COLUMN operadora TEXT",
         "ALTER TABLE funcionarios ADD COLUMN genero TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN residencia_municipio TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN residencia_pueblo TEXT",
         "ALTER TABLE funcionarios ADD COLUMN municipio TEXT",
         "ALTER TABLE funcionarios ADD COLUMN pueblo TEXT",
         """CREATE TABLE IF NOT EXISTS egresos_mensuales (
@@ -330,6 +333,8 @@ class Funcionario():
         self.altura = altura
         self.estado_civil = estado_civil
         self.residencia = residencia
+        self.residencia_municipio = ""
+        self.residencia_pueblo = ""
         self.operadora = ""
         self.genero = ""
         self.grupo_familiar = []
@@ -441,6 +446,8 @@ def cargar_funcionarios(incluir_inactivos=False):
             row["peso"], row["altura"], row["estado_civil"], row["residencia"]
         )
         f.activo = row["activo"]
+        f.residencia_municipio = row["residencia_municipio"] or ""
+        f.residencia_pueblo = row["residencia_pueblo"] or ""
         f.datos_laborales(
             row["jerarquia"] or "", row["lugar_presta_servicio"] or "",
             row["tiempo_servicio"] or "", row["salario_mensual"] or ""
@@ -507,7 +514,8 @@ def guardar_funcionarios(funcionarios):
         cursor.execute("""
             INSERT OR REPLACE INTO funcionarios (
                 cedula, nombre, apellido, fecha_nacimiento, edad, telefono, operadora, genero, peso, altura,
-                estado_civil, residencia, jerarquia, lugar_presta_servicio, tiempo_servicio,
+                estado_civil, residencia, residencia_municipio, residencia_pueblo,
+                jerarquia, lugar_presta_servicio, tiempo_servicio,
                 salario_mensual, terreno_propio, ubicacion_terreno, condicion_vivienda, municipio, pueblo,
                 necesidad_vivienda, organismo_publico, organismo_privado,
                 gestion_organismo_oficial, fecha_gestion, tenencia_tierra, ambiente_vivienda,
@@ -516,10 +524,11 @@ def guardar_funcionarios(funcionarios):
                 ingreso_trabajador, ingreso_familiar_adicional, total_ingreso_familiar,
                 egreso_grupo_familiar, disponibilidad_economica,
                 activo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, getattr(f, "operadora", ""), getattr(f, "genero", ""), f.peso,
             f.altura, f.estado_civil, f.residencia,
+            getattr(f, "residencia_municipio", "") or "", getattr(f, "residencia_pueblo", "") or "",
             getattr(f, "jerarquia", None), getattr(f, "lugar_presta_servicio", None),
             getattr(f, "tiempo_servicio", None), getattr(f, "salario_mensual", None),
             getattr(f, "terreno_propio", None), getattr(f, "ubicacion_terreno", None),
