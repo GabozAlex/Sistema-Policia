@@ -1145,14 +1145,13 @@ class UI:
             w.bind("<MouseWheel>", _on_mousewheel_pv)
 
         self._plan_entries = {}
-        def entry_row(parent, label):
+        def combobox_row(parent, label, valores, es_readonly=True):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=3)
             Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
-            e = Entry(r, font=(FONT, 11), relief="solid", borderwidth=1,
-                      highlightbackground=self.border, highlightthickness=1)
-            e.pack(side=LEFT, ipady=3, fill=X, expand=True)
-            return e
+            cb = ttk.Combobox(r, values=valores, font=(FONT, 11), state="readonly" if es_readonly else NORMAL)
+            cb.pack(side=LEFT, ipady=3, fill=X, expand=True)
+            return cb
 
         def seccion(parent, titulo):
             f = LabelFrame(parent, text=titulo, font=(FONT, 10, "bold"),
@@ -1173,11 +1172,15 @@ class UI:
 
         f = seccion(sf, "Terreno")
         radio_group(f, "Terreno Propio:", self.posee_terreno, ["SI", "NO"])
-        self._plan_entries["ubicacion_terreno"] = entry_row(f, "Ubicacion:")
+        
+        municipios = valores_catalogo("municipio")
+        self.input_municipio = combobox_row(f, "Municipio:", municipios)
+        self.input_pueblo = combobox_row(f, "Pueblo/Sector:", [])
+        self.input_municipio.bind("<<ComboboxSelected>>", self._filtrar_pueblos)
 
         f = seccion(sf, "Vivienda")
         radio_group(f, "Posee Vivienda:", self.posee_vivienda, ["SI", "NO"])
-        self._plan_entries["condicion_vivienda"] = entry_row(f, "Condicion:")
+        self.input_condicion_vivienda = combobox_row(f, "Condicion:", valores_catalogo("condicion_vivienda"))
 
         f = seccion(sf, "Necesidad Habitacional")
         radio_group(f, "Necesidad:", self.necesidad_habiacion, ["Vivienda", "Construccion", "Sustitucion", "Mejoramiento"])
@@ -1194,8 +1197,7 @@ class UI:
         self._plan_entries["fecha_gestion"] = self._crear_date_picker(r)
         self._plan_entries["fecha_gestion"].pack(side=LEFT, ipady=3, fill=X, expand=True)
 
-        self.input_ubicacion_terreno = self._plan_entries["ubicacion_terreno"]
-        self.input_condicion_vivienda = self._plan_entries["condicion_vivienda"]
+        self.input_condicion_vivienda = combobox_row(f, "Condicion:", valores_catalogo("condicion_vivienda"))
         self.input_fecha_gestion = self._plan_entries["fecha_gestion"]
 
     def _crear_tab_estado_vivienda(self):
@@ -1580,6 +1582,12 @@ class UI:
                                           font=(FONT, 10), bg=self.bg_card, fg=self.text_sec)
                 self.empty_label.pack(pady=30)
 
+    def _filtrar_pueblos(self, event=None):
+        mun = self.input_municipio.get().strip()
+        pueblos = [p["valor"] for p in cargar_catalogo("pueblo") if p["detalle"] == mun]
+        self.input_pueblo.configure(values=pueblos)
+        self.input_pueblo.set("")
+
     def guardar_funcionario(self):
         cedula = normalizar_cedula(self.input_cedula.get())
         if not cedula:
@@ -1607,15 +1615,19 @@ class UI:
         )
         f.operadora = self.input_operadora.get().strip()
         f.genero = self.input_genero.get().strip()
+        f.municipio = self.input_municipio.get().strip()
+        f.pueblo = self.input_pueblo.get().strip()
+        f.condicion_vivienda = self.input_condicion_vivienda.get().strip()
 
         f.datos_laborales(
             self.input_jerarquia.get().strip(), detalle_de_lugar(self.input_lugar_servicio.get().strip()),
             self.input_tiempo_servicio.get().strip(), self.input_ingreso_mensual.get().strip()
         )
-
         f.plan_vivienda(
-            self.posee_terreno.get(), self.input_ubicacion_terreno.get().strip(),
-            self.input_condicion_vivienda.get().strip(), self.necesidad_habiacion.get(),
+            self.posee_terreno.get(), "",
+            self.input_condicion_vivienda.get().strip(),
+            self.input_municipio.get().strip(), self.input_pueblo.get().strip(),
+            self.necesidad_habiacion.get(),
             self.organismo_publico.get(), self.organismo_privado.get(),
             self.gestion_organismo.get(), self.input_fecha_gestion.get().strip()
         )
@@ -1729,6 +1741,10 @@ class UI:
         self.input_altura.delete(0, END); self.input_altura.insert(0, f.altura)
         self.input_estado_civil.set(f.estado_civil)
         self.input_genero.set(getattr(f, "genero", "") or "")
+        self.input_municipio.set(f.municipio or "")
+        self._filtrar_pueblos()
+        self.input_pueblo.set(f.pueblo or "")
+        self.input_condicion_vivienda.set(f.condicion_vivienda or "")
         self.input_residencia.delete(0, END); self.input_residencia.insert(0, f.residencia)
 
         self.input_jerarquia.set(getattr(f, "jerarquia", ""))
@@ -1744,12 +1760,11 @@ class UI:
         self.gestion_organismo.set(getattr(f, "gestion_organismo_oficial", "") or "NO")
         self.organismo_publico.set(getattr(f, "organismo_publico", "") or "Otra")
         self.organismo_privado.set(getattr(f, "organismo_privado", "") or "Otra")
-        self._plan_entries["ubicacion_terreno"].delete(0, END)
-        self._plan_entries["ubicacion_terreno"].insert(0, getattr(f, "ubicacion_terreno", "") or "")
-        self._plan_entries["condicion_vivienda"].delete(0, END)
-        self._plan_entries["condicion_vivienda"].insert(0, getattr(f, "condicion_vivienda", "") or "")
-        self._plan_entries["fecha_gestion"].delete(0, END)
-        self._plan_entries["fecha_gestion"].insert(0, getattr(f, "fecha_gestion", "") or "")
+        self.input_municipio.set(f.municipio or "")
+        self._filtrar_pueblos()
+        self.input_pueblo.set(f.pueblo or "")
+        self.input_condicion_vivienda.set(f.condicion_vivienda or "")
+        self.input_fecha_gestion.delete(0, END); self.input_fecha_gestion.insert(0, f.fecha_gestion or "")
 
         self.tenencia_tierra.set(getattr(f, "tenencia_tierra", "") or "Otra")
         self.input_tenencia_tierra_otra.delete(0, END)
@@ -1865,6 +1880,15 @@ class UI:
             elif tipo == "lugar_servicio":
                 actual = (getattr(f, "lugar_presta_servicio", "") or "").strip().lower()
                 if actual and actual in (detalle.lower(), valor.lower()):
+                    usados += 1
+            elif tipo == "condicion_vivienda":
+                if (getattr(f, "condicion_vivienda", "") or "").strip().lower() == valor.lower():
+                    usados += 1
+            elif tipo == "municipio":
+                if (getattr(f, "municipio", "") or "").strip().lower() == valor.lower():
+                    usados += 1
+            elif tipo == "pueblo":
+                if (getattr(f, "pueblo", "") or "").strip().lower() == valor.lower():
                     usados += 1
             for fam in (getattr(f, "grupo_familiar", None) or []):
                 if tipo == "parentesco":
@@ -2062,6 +2086,9 @@ class UI:
         crear_tab_catalogo("parentesco", "Parentesco")
         crear_tab_catalogo("nivel_educacion", "Nivel de Educación")
         crear_tab_catalogo("profesion", "Profesión")
+        crear_tab_catalogo("condicion_vivienda", "Condición Vivienda")
+        crear_tab_catalogo("municipio", "Municipios")
+        crear_tab_catalogo("pueblo", "Pueblos/Sectores")
 
         tab_op = Frame(nb, bg=self.bg_card)
         nb.add(tab_op, text="Operadoras")
