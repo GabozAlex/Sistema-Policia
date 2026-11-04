@@ -1,3 +1,6 @@
+import calendar
+from datetime import date
+
 from tkinter import *
 from tkinter import ttk, messagebox, simpledialog
 import tkinter.font as tkfont
@@ -9,7 +12,7 @@ from logic import (Funcionario, Familiar, cargar_funcionarios, guardar_funcionar
                    cargar_catalogo, valores_catalogo, detalle_de_lugar, lugar_por_detalle,
                    cargar_operadoras, agregar_catalogo, eliminar_catalogo,
                    agregar_operadora, eliminar_operadora,
-                   normalizar_cedula, separar_cedula, dividir_telefono, solo_digitos)
+                   normalizar_cedula, dividir_telefono, solo_digitos)
 
 
 def _detectar_fuente():
@@ -518,11 +521,15 @@ class UI:
         ]
         self._crear_field_grid(scroll_frame, fields)
 
-        if func.residencia:
+        if func.residencia_municipio or func.residencia_pueblo or func.residencia:
             Label(scroll_frame, text="Direccion", font=(FONT, 12, "bold"),
                   bg=self.bg_card, fg=self.primary).pack(anchor=W, padx=20, pady=(12, 5))
             Frame(scroll_frame, bg=self.border, height=1).pack(fill=X, padx=20, pady=(0, 8))
-            self._crear_field_grid(scroll_frame, [("Direccion", func.residencia or "")])
+            self._crear_field_grid(scroll_frame, [
+                ("Municipio", getattr(func, "residencia_municipio", "") or ""),
+                ("Pueblo/Sector", getattr(func, "residencia_pueblo", "") or ""),
+                ("Direccion", func.residencia or ""),
+            ])
 
         Label(scroll_frame, text="Datos Laborales", font=(FONT, 12, "bold"),
               bg=self.bg_card, fg=self.primary).pack(anchor=W, padx=20, pady=(12, 5))
@@ -719,7 +726,10 @@ class UI:
                 ("Edad", func.edad), ("Genero", getattr(func, "genero", "") or ""),
                 ("Estado Civil", func.estado_civil),
                 ("Telefono", self._telefono_completo(func)), ("Peso", func.peso or ""),
-                ("Altura", func.altura or ""), ("Direccion", func.residencia or ""),
+                ("Altura", func.altura or ""),
+                ("Municipio", getattr(func, "residencia_municipio", "") or ""),
+                ("Pueblo/Sector", getattr(func, "residencia_pueblo", "") or ""),
+                ("Direccion", func.residencia or ""),
             ])
             write_section("Datos Laborales", [
                 ("Jerarquia", func.jerarquia or ""),
@@ -777,6 +787,8 @@ class UI:
             lines.append(f"Telefono: {self._telefono_completo(func) or '-'}")
             lines.append(f"Peso: {func.peso or '-'}")
             lines.append(f"Altura: {func.altura or '-'}")
+            lines.append(f"Municipio: {getattr(func, 'residencia_municipio', '') or '-'}")
+            lines.append(f"Pueblo/Sector: {getattr(func, 'residencia_pueblo', '') or '-'}")
             lines.append(f"Direccion: {func.residencia or '-'}")
             lines.append(f"\nDATOS LABORALES")
             lines.append(f"Jerarquia: {func.jerarquia or '-'}")
@@ -964,46 +976,159 @@ class UI:
 
     def _crear_date_picker(self, parent, on_change=None):
         frame = Frame(parent, bg=self.bg_card)
+        var = StringVar(master=frame)
 
-        meses = [f"{i:02d}" for i in range(1, 13)]
-        dias = [f"{i:02d}" for i in range(1, 32)]
-        anios = [str(i) for i in range(1950, 2031)]
+        entry = Entry(frame, textvariable=var, font=(FONT, 11), relief="solid", borderwidth=1,
+                      highlightbackground=self.border, highlightthickness=1,
+                      state="readonly", readonlybackground=self.bg_card)
+        entry.pack(side=LEFT, fill=X, expand=True, ipady=3)
 
-        dia_cb = ttk.Combobox(frame, values=dias, width=4, font=(FONT, 11), state="readonly")
-        dia_cb.pack(side=LEFT, padx=(0, 2))
-        Label(frame, text="/", font=(FONT, 12, "bold"), bg=self.bg_card, fg=self.text_sec).pack(side=LEFT)
-        mes_cb = ttk.Combobox(frame, values=meses, width=4, font=(FONT, 11), state="readonly")
-        mes_cb.pack(side=LEFT, padx=2)
-        Label(frame, text="/", font=(FONT, 12, "bold"), bg=self.bg_card, fg=self.text_sec).pack(side=LEFT)
-        anio_cb = ttk.Combobox(frame, values=anios, width=6, font=(FONT, 11), state="readonly")
-        anio_cb.pack(side=LEFT, padx=2)
+        boton = Button(frame, text="...", font=(FONT, 10, "bold"), bg=self.accent, fg=self.primary,
+                       activebackground=self.accent_hover, relief="flat", borderwidth=0,
+                       cursor="hand2")
+        boton.pack(side=LEFT, padx=(4, 0), ipady=3, ipadx=6)
 
-        if on_change:
-            for cb in (dia_cb, mes_cb, anio_cb):
-                cb.bind("<<ComboboxSelected>>", on_change)
+        meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                 "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 
         def get_val():
-            d = dia_cb.get()
-            m = mes_cb.get()
-            a = anio_cb.get()
-            if d and m and a:
-                return f"{d}/{m}/{a}"
-            return ""
+            return var.get()
 
-        def set_val(val):
-            if not val or "/" not in val:
+        def set_val(val, disparar=False):
+            s = str(val or "").strip()
+            if not s or "/" not in s:
+                var.set("")
                 return
-            parts = val.split("/")
-            if len(parts) == 3:
-                d, m, a = parts
-                if d in dias: dia_cb.set(d)
-                if m in meses: mes_cb.set(m)
-                if a in anios: anio_cb.set(a)
+            parts = s.split("/")
+            if len(parts) != 3:
+                return
+            try:
+                d, m, a = int(parts[0]), int(parts[1]), int(parts[2])
+                fecha = date(a, m, d)
+            except Exception:
+                return
+            if fecha > date.today():
+                return
+            var.set(f"{d:02d}/{m:02d}/{a:04d}")
+            if disparar and on_change:
+                on_change()
+
+        def abrir():
+            hoy = date.today()
+            base = var.get()
+            sel = hoy
+            if "/" in base:
+                try:
+                    dd, mm, aa = [int(x) for x in base.split("/")]
+                    sel = date(aa, mm, dd)
+                except Exception:
+                    sel = hoy
+            estado = {"anio": sel.year, "mes": sel.month}
+
+            top = Toplevel(self.root)
+            top.title("Seleccionar fecha")
+            top.transient(self.root)
+            top.resizable(False, False)
+            top.configure(bg=self.bg_card)
+            top.grab_set()
+
+            cab = Frame(top, bg=self.bg_card)
+            cab.pack(fill=X, padx=10, pady=(10, 4))
+            Button(cab, text="<", font=(FONT, 10, "bold"), bg=self.bg_card, fg=self.text,
+                   relief="flat", borderwidth=0, cursor="hand2",
+                   command=lambda: mover(-1)).pack(side=LEFT, padx=2)
+            lbl = Label(cab, text="", font=(FONT, 11, "bold"), bg=self.bg_card, fg=self.text)
+            lbl.pack(side=LEFT, expand=True)
+            Button(cab, text=">", font=(FONT, 10, "bold"), bg=self.bg_card, fg=self.text,
+                   relief="flat", borderwidth=0, cursor="hand2",
+                   command=lambda: mover(1)).pack(side=RIGHT, padx=2)
+
+            yrow = Frame(top, bg=self.bg_card)
+            yrow.pack(fill=X, padx=10, pady=(0, 6))
+            Label(yrow, text="Año:", font=(FONT, 10), bg=self.bg_card, fg=self.text).pack(side=LEFT)
+            spin = Spinbox(yrow, from_=1900, to=hoy.year, width=6, font=(FONT, 10),
+                           relief="solid", borderwidth=1)
+            spin.pack(side=LEFT, padx=(4, 0))
+
+            grid = Frame(top, bg=self.bg_card)
+            grid.pack(padx=10, pady=(0, 6))
+
+            def elegir(dia):
+                set_val(f"{dia:02d}/{estado['mes']:02d}/{estado['anio']}", disparar=True)
+                top.destroy()
+
+            def render():
+                lbl.config(text=f"{meses[estado['mes']]} {estado['anio']}")
+                spin.delete(0, END)
+                spin.insert(0, str(estado["anio"]))
+                for w in grid.winfo_children():
+                    w.destroy()
+                for i, nombre in enumerate(["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"]):
+                    Label(grid, text=nombre, font=(FONT, 9, "bold"), bg=self.bg_card,
+                          fg=self.text_sec, width=3).grid(row=0, column=i, padx=1, pady=1)
+                cal = calendar.Calendar(firstweekday=0)
+                for r, semana in enumerate(cal.monthdayscalendar(estado["anio"], estado["mes"]), start=1):
+                    for c, dia in enumerate(semana):
+                        if dia == 0:
+                            Label(grid, text="", bg=self.bg_card, width=3).grid(row=r, column=c)
+                            continue
+                        fecha = date(estado["anio"], estado["mes"], dia)
+                        futuro = fecha > hoy
+                        Button(grid, text=str(dia), font=(FONT, 9), width=3,
+                               relief="flat", borderwidth=0, cursor="hand2",
+                               bg=self.bg_card, fg=self.text_sec if futuro else self.text,
+                               state="disabled" if futuro else "normal",
+                               command=lambda d=dia: elegir(d)).grid(row=r, column=c, padx=1, pady=1)
+
+            def mover(delta):
+                m = estado["mes"] + delta
+                a = estado["anio"]
+                if m < 1:
+                    m, a = 12, a - 1
+                elif m > 12:
+                    m, a = 1, a + 1
+                if a < 1900:
+                    a, m = 1900, 1
+                if (a, m) > (hoy.year, hoy.month):
+                    return
+                estado["mes"], estado["anio"] = m, a
+                render()
+
+            def set_anio(val):
+                try:
+                    a = int(val)
+                except Exception:
+                    a = estado["anio"]
+                a = max(1900, min(a, hoy.year))
+                if a == hoy.year and estado["mes"] > hoy.month:
+                    estado["mes"] = hoy.month
+                estado["anio"] = a
+                render()
+
+            spin.config(command=lambda: set_anio(spin.get()))
+            spin.bind("<Return>", lambda e: set_anio(spin.get()))
+            spin.bind("<FocusOut>", lambda e: set_anio(spin.get()))
+
+            pie = Frame(top, bg=self.bg_card)
+            pie.pack(fill=X, padx=10, pady=(0, 10))
+            def ir_hoy():
+                estado["anio"], estado["mes"] = hoy.year, hoy.month
+                render()
+            Button(pie, text="Hoy", font=(FONT, 10), bg=self.bg_card, fg=self.text,
+                   relief="solid", borderwidth=1, cursor="hand2", command=ir_hoy).pack(side=LEFT, ipady=2, ipadx=8)
+            Button(pie, text="Cerrar", font=(FONT, 10), bg=self.bg_card, fg=self.text,
+                   relief="solid", borderwidth=1, cursor="hand2", command=top.destroy).pack(side=RIGHT, ipady=2, ipadx=8)
+
+            render()
+
+        boton.config(command=abrir)
 
         frame.get = get_val
-        frame.delete = lambda *a: None
+        frame.set = set_val
+        frame.delete = lambda *a: var.set("")
         frame.insert = lambda idx, val: set_val(val)
         frame.config = lambda **kw: None
+        frame.abrir = abrir
 
         return frame
 
@@ -1027,9 +1152,55 @@ class UI:
             self.input_telefono.delete(0, END)
             self.input_telefono.insert(0, fmt)
 
+    def _validar_decimal(self, propuesto, max_ent, max_dec):
+        if propuesto == "":
+            return True
+        p = propuesto.replace(",", ".")
+        if p.count(".") > 1 or any(c not in "0123456789." for c in p):
+            return False
+        entero, _, decimales = p.partition(".")
+        if not entero:
+            return False
+        return len(entero) <= max_ent and len(decimales) <= max_dec
+
+    def _validar_peso(self, propuesto):
+        return self._validar_decimal(propuesto, 3, 1)
+
+    def _validar_altura(self, propuesto):
+        return self._validar_decimal(propuesto, 1, 2)
+
+    def _normalizar_decimal(self, entry):
+        valor = entry.get().strip().replace(",", ".")
+        if valor != entry.get():
+            entry.delete(0, END)
+            entry.insert(0, valor)
+        return valor
+
     def _crear_tab_personales(self):
         p = self.tab_personales
-        for i in range(11): p.grid_rowconfigure(i, pad=8)
+
+        canvas = Canvas(p, bg=self.bg_card, highlightthickness=0)
+        scroll = ttk.Scrollbar(p, orient=VERTICAL, command=canvas.yview)
+        sf = Frame(canvas, bg=self.bg_card)
+        sf.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        win_id = canvas.create_window((0, 0), window=sf, anchor=NW)
+        def _resize_canvas(event):
+            canvas.itemconfig(win_id, width=event.width)
+        canvas.bind("<Configure>", _resize_canvas)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        scroll.pack(side=RIGHT, fill=Y)
+        def _on_mousewheel(event):
+            if event.num == 4: canvas.yview_scroll(-3, "units")
+            elif event.num == 5: canvas.yview_scroll(3, "units")
+            else: canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        for w in (canvas, sf):
+            w.bind("<Button-4>", _on_mousewheel)
+            w.bind("<Button-5>", _on_mousewheel)
+            w.bind("<MouseWheel>", _on_mousewheel)
+
+        p = sf
+        for i in range(14): p.grid_rowconfigure(i, pad=8)
         for i in range(6): p.grid_columnconfigure(i, weight=1, pad=15)
 
         Label(p, text="Datos Personales", font=(FONT, 13, "bold"),
@@ -1046,14 +1217,11 @@ class UI:
                 widgets.append(e)
             return widgets
 
-        # Cedula: selector de tipo (V/E/J) + hasta 8 digitos
+        # Cedula: prefijo "V-" fijo + hasta 8 digitos
         Label(p, text="Cedula:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
         ced_frame = Frame(p, bg=self.bg_card, highlightbackground=self.border, highlightthickness=1)
         ced_frame.grid(row=2, column=0, columnspan=2, sticky=EW, padx=(0, 10))
-        self.input_cedula_tipo = ttk.Combobox(
-            ced_frame, values=["V", "E", "J"], font=(FONT, 11), state="readonly", width=3)
-        self.input_cedula_tipo.set("V")
-        self.input_cedula_tipo.pack(side=LEFT, padx=(4, 2))
+        Label(ced_frame, text="V-", font=(FONT, 11, "bold"), bg=self.bg_card, fg=self.text).pack(side=LEFT, padx=(6, 2))
         self.input_cedula = Entry(
             ced_frame, font=(FONT, 11), relief="flat", borderwidth=0, highlightthickness=0,
             validate="key", validatecommand=(self.root.register(self._validar_cedula), "%P"))
@@ -1099,6 +1267,10 @@ class UI:
         self.input_telefono.bind("<Return>", self._formatear_telefono_event)
 
         self.input_peso, self.input_altura = campo_fila(5, ["Peso (kg):", "Altura (m):"], colspan=2)
+        self.input_peso.config(validate="key", validatecommand=(self.root.register(self._validar_peso), "%P"))
+        self.input_altura.config(validate="key", validatecommand=(self.root.register(self._validar_altura), "%P"))
+        self.input_peso.bind("<FocusOut>", lambda e: self._normalizar_decimal(self.input_peso))
+        self.input_altura.bind("<FocusOut>", lambda e: self._normalizar_decimal(self.input_altura))
         Label(p, text="Estado Civil:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=5, column=4, sticky=W, pady=(6, 2))
         self.input_estado_civil = ttk.Combobox(p, values=valores_catalogo("estado_civil"), font=(FONT, 11), state="readonly")
         self.input_estado_civil.grid(row=6, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
@@ -1107,7 +1279,23 @@ class UI:
         self.input_genero = ttk.Combobox(p, values=["Masculino", "Femenino"], font=(FONT, 11), state="readonly")
         self.input_genero.grid(row=8, column=0, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        self.input_residencia, = campo_fila(9, ["Direccion:"], colspan=6)
+        Label(p, text="Direccion", font=(FONT, 12, "bold"), bg=self.bg_card, fg=self.primary).grid(
+            row=9, column=0, columnspan=6, sticky=W, pady=(14, 4))
+
+        Label(p, text="Municipio:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=10, column=0, sticky=W, pady=(6, 2))
+        self.input_residencia_municipio = ttk.Combobox(
+            p, values=valores_catalogo("municipio"), font=(FONT, 11), state="readonly")
+        self.input_residencia_municipio.grid(row=11, column=0, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
+        self.input_residencia_municipio.bind("<<ComboboxSelected>>", self._filtrar_pueblos_residencia)
+
+        Label(p, text="Pueblo/Sector:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=10, column=2, sticky=W, pady=(6, 2))
+        self.input_residencia_pueblo = ttk.Combobox(p, values=[], font=(FONT, 11), state="readonly")
+        self.input_residencia_pueblo.grid(row=11, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
+
+        Label(p, text="Direccion:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=12, column=0, sticky=W, pady=(6, 2))
+        self.input_residencia = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
+                                      highlightbackground=self.border, highlightthickness=1)
+        self.input_residencia.grid(row=13, column=0, columnspan=6, sticky=EW, padx=(0, 10), ipady=3)
 
     def _crear_tab_laborales(self):
         p = self.tab_laborales
@@ -1610,8 +1798,14 @@ class UI:
         self.input_pueblo.configure(values=pueblos)
         self.input_pueblo.set("")
 
+    def _filtrar_pueblos_residencia(self, event=None):
+        mun = self.input_residencia_municipio.get().strip()
+        pueblos = [p["valor"] for p in cargar_catalogo("pueblo") if p["detalle"] == mun]
+        self.input_residencia_pueblo.configure(values=pueblos)
+        self.input_residencia_pueblo.set("")
+
     def guardar_funcionario(self):
-        cedula = normalizar_cedula(self.input_cedula.get(), self.input_cedula_tipo.get())
+        cedula = normalizar_cedula(self.input_cedula.get())
         if not cedula:
             messagebox.showwarning("Error", "La cedula es obligatoria", parent=self.root)
             return
@@ -1628,15 +1822,19 @@ class UI:
                     messagebox.showwarning("Error", f"La cedula {cedula} ya existe en el sistema", parent=self.root)
                     return
 
+        peso = self.input_peso.get().strip().replace(",", ".")
+        altura = self.input_altura.get().strip().replace(",", ".")
+
         f = Funcionario(
             cedula, self.input_nombre.get().strip(), self.input_apellido.get().strip(),
             self.input_fecha_nacimiento.get().strip(), self.input_edad.get().strip(),
-            telefono, self.input_peso.get().strip(),
-            self.input_altura.get().strip(), self.input_estado_civil.get().strip(),
+            telefono, peso, altura, self.input_estado_civil.get().strip(),
             self.input_residencia.get().strip()
         )
         f.operadora = self.input_operadora.get().strip()
         f.genero = self.input_genero.get().strip()
+        f.residencia_municipio = self.input_residencia_municipio.get().strip()
+        f.residencia_pueblo = self.input_residencia_pueblo.get().strip()
         f.municipio = self.input_municipio.get().strip()
         f.pueblo = self.input_pueblo.get().strip()
         f.condicion_vivienda = self.input_condicion_vivienda.get().strip()
@@ -1742,12 +1940,9 @@ class UI:
     def _cargar_datos_en_formulario(self, f):
         self.mostrar_registrar_usuario(funcionario=f)
 
-        tipo_ced, num_ced = separar_cedula(f.cedula)
-        self.input_cedula_tipo.set(tipo_ced)
-        self.input_cedula_tipo.config(state="disabled")
         self.input_cedula.config(state=NORMAL)
         self.input_cedula.delete(0, END)
-        self.input_cedula.insert(0, num_ced)
+        self.input_cedula.insert(0, solo_digitos(f.cedula)[:8])
         self.input_cedula.config(state="readonly")
 
         self.input_nombre.delete(0, END); self.input_nombre.insert(0, f.nombre)
@@ -1772,6 +1967,9 @@ class UI:
         self.input_pueblo.set(f.pueblo or "")
         self.input_condicion_vivienda.set(f.condicion_vivienda or "")
         self.input_residencia.delete(0, END); self.input_residencia.insert(0, f.residencia)
+        self.input_residencia_municipio.set(getattr(f, "residencia_municipio", "") or "")
+        self._filtrar_pueblos_residencia()
+        self.input_residencia_pueblo.set(getattr(f, "residencia_pueblo", "") or "")
 
         self.input_jerarquia.set(getattr(f, "jerarquia", ""))
         self.input_tiempo_servicio.delete(0, END)
@@ -1911,10 +2109,12 @@ class UI:
                 if (getattr(f, "condicion_vivienda", "") or "").strip().lower() == valor.lower():
                     usados += 1
             elif tipo == "municipio":
-                if (getattr(f, "municipio", "") or "").strip().lower() == valor.lower():
+                if ((getattr(f, "municipio", "") or "").strip().lower() == valor.lower()
+                        or (getattr(f, "residencia_municipio", "") or "").strip().lower() == valor.lower()):
                     usados += 1
             elif tipo == "pueblo":
-                if (getattr(f, "pueblo", "") or "").strip().lower() == valor.lower():
+                if ((getattr(f, "pueblo", "") or "").strip().lower() == valor.lower()
+                        or (getattr(f, "residencia_pueblo", "") or "").strip().lower() == valor.lower()):
                     usados += 1
             for fam in (getattr(f, "grupo_familiar", None) or []):
                 if tipo == "parentesco":
