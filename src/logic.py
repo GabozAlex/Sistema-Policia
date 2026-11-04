@@ -607,7 +607,10 @@ def lugar_por_detalle(detalle):
 def agregar_catalogo(tipo, valor, detalle=""):
     conn = _get_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO catalogos (tipo, valor, detalle) VALUES (?, ?, ?)", (tipo, valor, detalle))
+    cursor.execute("SELECT COALESCE(MAX(orden), 0) + 1 FROM catalogos WHERE tipo = ?", (tipo,))
+    orden = cursor.fetchone()[0]
+    cursor.execute("INSERT INTO catalogos (tipo, valor, detalle, orden) VALUES (?, ?, ?, ?)",
+                   (tipo, valor, detalle, orden))
     conn.commit()
     conn.close()
 

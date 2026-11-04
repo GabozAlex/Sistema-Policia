@@ -1845,35 +1845,267 @@ class UI:
         self.familiares_panels = []
         self.inicio_sesion()
 
+    def _contar_uso_catalogo(self, tipo, valor, detalle=""):
+        usados = 0
+        for f in cargar_funcionarios(incluir_inactivos=True):
+            if tipo == "estado_civil":
+                if (f.estado_civil or "").strip().lower() == valor.lower():
+                    usados += 1
+            elif tipo == "jerarquia":
+                if (getattr(f, "jerarquia", "") or "").strip().lower() == valor.lower():
+                    usados += 1
+            elif tipo == "lugar_servicio":
+                actual = (getattr(f, "lugar_presta_servicio", "") or "").strip().lower()
+                if actual and actual in (detalle.lower(), valor.lower()):
+                    usados += 1
+        return usados
+
+    def _contar_uso_operadora(self, prefijo):
+        usados = 0
+        for f in cargar_funcionarios(incluir_inactivos=True):
+            op = (getattr(f, "operadora", "") or "").strip()
+            pre, _ = dividir_telefono(getattr(f, "telefono", "") or "")
+            op_valido = len(op) == 3 and op.isdigit()
+            if op == prefijo or (not op_valido and pre == prefijo):
+                usados += 1
+        return usados
+
     def abrir_catalogos(self):
         win = Toplevel(self.root)
         win.title("Gestión de Catálogos")
-        win.geometry("600x400")
+        win.geometry("720x480")
+        win.minsize(620, 420)
         win.configure(bg=self.bg_card)
         win.transient(self.root)
         win.grab_set()
-        
+
+        pie = Frame(win, bg=self.bg_card)
+        pie.pack(side=BOTTOM, fill=X, pady=(0, 10))
+        Button(pie, text="Cerrar", font=(FONT, 10), bg=self.text_sec, fg="white",
+               relief="flat", borderwidth=0, cursor="hand2", command=win.destroy).pack(ipady=4)
+
         nb = ttk.Notebook(win)
-        nb.pack(fill=BOTH, expand=True, padx=10, pady=10)
-        
-        def crear_tab(tipo, valores):
+        nb.pack(fill=BOTH, expand=True, padx=10, pady=(10, 4))
+
+        def pedir_datos(titulo, campos):
+            dlg = Toplevel(win)
+            dlg.title(f"Agregar a {titulo}")
+            dlg.configure(bg=self.bg_card)
+            dlg.transient(win)
+            dlg.resizable(False, False)
+            dlg.grab_set()
+
+            entradas = {}
+            for i, (clave, etiqueta) in enumerate(campos):
+                Label(dlg, text=etiqueta, font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(
+                    row=i, column=0, sticky=W, padx=(12, 6), pady=(12 if i == 0 else 6, 2))
+                entry = Entry(dlg, font=(FONT, 11), relief="solid", borderwidth=1,
+                              highlightbackground=self.border, highlightthickness=1, width=32)
+                entry.grid(row=i, column=1, sticky=EW, padx=(6, 12),
+                           pady=(12 if i == 0 else 6, 2), ipady=3)
+                entradas[clave] = entry
+            dlg.grid_columnconfigure(1, weight=1)
+
+            resultado = {"ok": False}
+
+            def guardar():
+                valores = {k: e.get().strip() for k, e in entradas.items()}
+                if "valor" in valores and not valores["valor"]:
+                    messagebox.showwarning("Error", "El valor es obligatorio.", parent=dlg)
+                    return
+                if "detalle" in valores and not valores["detalle"]:
+                    messagebox.showwarning("Error", "La dirección es obligatoria.", parent=dlg)
+                    return
+                if "prefijo" in valores:
+                    if not valores["prefijo"]:
+                        messagebox.showwarning("Error", "El prefijo es obligatorio.", parent=dlg)
+                        return
+                    if len(valores["prefijo"]) != 3 or not valores["prefijo"].isdigit():
+                        messagebox.showwarning("Error", "El prefijo debe tener exactamente 3 dígitos.", parent=dlg)
+                        return
+                    if not valores.get("operadora"):
+                        messagebox.showwarning("Error", "El nombre de la operadora es obligatorio.", parent=dlg)
+                        return
+                resultado.update(valores)
+                resultado["ok"] = True
+                dlg.destroy()
+
+            def cancelar():
+                dlg.destroy()
+
+            dlg.bind("<Return>", lambda e: guardar())
+            dlg.bind("<Escape>", lambda e: cancelar())
+
+            barra = Frame(dlg, bg=self.bg_card)
+            barra.grid(row=len(campos), column=0, columnspan=2, sticky=EW, padx=12, pady=(8, 12))
+            Button(barra, text="Guardar", font=(FONT, 10), bg=self.success, fg="white",
+                   relief="flat", borderwidth=0, cursor="hand2", command=guardar).pack(
+                       side=LEFT, padx=(0, 6), ipady=4)
+            Button(barra, text="Cancelar", font=(FONT, 10), bg=self.text_sec, fg="white",
+                   relief="flat", borderwidth=0, cursor="hand2", command=cancelar).pack(side=LEFT, ipady=4)
+
+            entradas[list(entradas)[0]].focus_set()
+            dlg.wait_window()
+            try:
+                win.grab_set()
+            except Exception:
+                pass
+            return resultado if resultado["ok"] else None
+
+        def crear_tab_catalogo(tipo, titulo):
             tab = Frame(nb, bg=self.bg_card)
-            nb.add(tab, text=tipo.replace("_", " ").title())
-            Label(tab, text=f"Gestión de {tipo}").pack()
-        
-        crear_tab("estado_civil", valores_catalogo("estado_civil"))
-        crear_tab("jerarquia", valores_catalogo("jerarquia"))
-        crear_tab("lugar_servicio", valores_catalogo("lugar_servicio"))
-        
-        # Pestaña Operadoras
+            nb.add(tab, text=titulo)
+            con_detalle = (tipo == "lugar_servicio")
+
+            cols = ("valor", "detalle") if con_detalle else ("valor",)
+            tree = ttk.Treeview(tab, columns=cols, show="headings", height=12)
+            tree.heading("valor", text="Sede" if con_detalle else "Valor")
+            if con_detalle:
+                tree.heading("detalle", text="Dirección")
+                tree.column("valor", width=190)
+                tree.column("detalle", width=430)
+            else:
+                tree.column("valor", width=620)
+            tree.pack(fill=BOTH, expand=True, padx=10, pady=(10, 4))
+
+            def refrescar():
+                for item in tree.get_children():
+                    tree.delete(item)
+                for reg in cargar_catalogo(tipo):
+                    if con_detalle:
+                        tree.insert("", "end", iid=reg["valor"],
+                                    values=(reg["valor"], reg["detalle"] or ""))
+                    else:
+                        tree.insert("", "end", iid=reg["valor"], values=(reg["valor"],))
+
+            def agregar():
+                campos = ([("valor", "Valor:"), ("detalle", "Dirección:")] if con_detalle
+                          else [("valor", "Valor:")])
+                datos = pedir_datos(titulo, campos)
+                if not datos:
+                    return
+                valor = datos["valor"]
+                detalle = datos.get("detalle", "")
+                existentes = cargar_catalogo(tipo)
+                if any((r["valor"] or "").strip().lower() == valor.lower() for r in existentes):
+                    messagebox.showwarning("Error", f"'{valor}' ya existe en {titulo}.", parent=win)
+                    return
+                if con_detalle and any((r["detalle"] or "").strip().lower() == detalle.lower()
+                                       for r in existentes):
+                    messagebox.showwarning("Error", "La dirección ya está registrada.", parent=win)
+                    return
+                try:
+                    agregar_catalogo(tipo, valor, detalle)
+                except Exception as e:
+                    messagebox.showerror("Error", str(e), parent=win)
+                    return
+                registrar_auditoria(self.usuario_actual, "AGREGAR_CATALOGO", f"{tipo}: {valor}")
+                refrescar()
+                messagebox.showinfo("Listo", f"'{valor}' agregado.", parent=win)
+
+            def eliminar():
+                sel = tree.selection()
+                if not sel:
+                    messagebox.showwarning("Error", "Seleccione un valor para eliminar.", parent=win)
+                    return
+                valor = sel[0]
+                detalle = ""
+                for reg in cargar_catalogo(tipo):
+                    if reg["valor"] == valor:
+                        detalle = reg["detalle"] or ""
+                        break
+                usados = self._contar_uso_catalogo(tipo, valor, detalle)
+                if usados:
+                    messagebox.showwarning(
+                        "No se puede eliminar",
+                        f"'{valor}' está asignado a {usados} funcionario(s).\n"
+                        "Cambie esos registros antes de eliminarlo.",
+                        parent=win)
+                    return
+                if not messagebox.askyesno("Confirmar", f"¿Eliminar '{valor}'?", parent=win):
+                    return
+                eliminar_catalogo(tipo, valor)
+                registrar_auditoria(self.usuario_actual, "ELIMINAR_CATALOGO", f"{tipo}: {valor}")
+                refrescar()
+
+            barra = Frame(tab, bg=self.bg_card)
+            barra.pack(fill=X, padx=10, pady=(0, 10))
+            Button(barra, text="Agregar", font=(FONT, 10), bg=self.success, fg="white",
+                   relief="flat", borderwidth=0, cursor="hand2", command=agregar).pack(
+                       side=LEFT, padx=(0, 6), ipady=4)
+            Button(barra, text="Eliminar", font=(FONT, 10), bg=self.danger, fg="white",
+                   relief="flat", borderwidth=0, cursor="hand2", command=eliminar).pack(side=LEFT, ipady=4)
+
+            refrescar()
+
+        crear_tab_catalogo("estado_civil", "Estado Civil")
+        crear_tab_catalogo("jerarquia", "Jerarquía")
+        crear_tab_catalogo("lugar_servicio", "Lugar de Servicio")
+
         tab_op = Frame(nb, bg=self.bg_card)
         nb.add(tab_op, text="Operadoras")
-        tree = ttk.Treeview(tab_op, columns=("Prefijo", "Operadora"), show="headings", height=8)
-        tree.heading("Prefijo", text="Prefijo")
-        tree.heading("Operadora", text="Operadora")
-        tree.pack(fill=BOTH, expand=True)
-        for op in cargar_operadoras():
-            tree.insert("", "end", values=(op["prefijo"], op["operadora"]))
+        tree_op = ttk.Treeview(tab_op, columns=("prefijo", "operadora"),
+                               show="headings", height=12)
+        tree_op.heading("prefijo", text="Prefijo")
+        tree_op.heading("operadora", text="Operadora")
+        tree_op.column("prefijo", width=120)
+        tree_op.column("operadora", width=480)
+        tree_op.pack(fill=BOTH, expand=True, padx=10, pady=(10, 4))
+
+        def refrescar_op():
+            for item in tree_op.get_children():
+                tree_op.delete(item)
+            for op in sorted(cargar_operadoras(), key=lambda x: x["prefijo"]):
+                tree_op.insert("", "end", iid=op["prefijo"],
+                               values=(op["prefijo"], op["operadora"]))
+
+        def agregar_op():
+            datos = pedir_datos("Operadoras", [("prefijo", "Prefijo:"), ("operadora", "Operadora:")])
+            if not datos:
+                return
+            prefijo = datos["prefijo"]
+            operadora = datos["operadora"]
+            if any(op["prefijo"] == prefijo for op in cargar_operadoras()):
+                messagebox.showwarning("Error", f"El prefijo {prefijo} ya existe.", parent=win)
+                return
+            try:
+                agregar_operadora(prefijo, operadora)
+            except Exception as e:
+                messagebox.showerror("Error", str(e), parent=win)
+                return
+            registrar_auditoria(self.usuario_actual, "AGREGAR_OPERADORA", f"{prefijo} - {operadora}")
+            refrescar_op()
+            messagebox.showinfo("Listo", f"Operadora {operadora} agregada.", parent=win)
+
+        def eliminar_op():
+            sel = tree_op.selection()
+            if not sel:
+                messagebox.showwarning("Error", "Seleccione una operadora para eliminar.", parent=win)
+                return
+            prefijo = sel[0]
+            usados = self._contar_uso_operadora(prefijo)
+            if usados:
+                messagebox.showwarning(
+                    "No se puede eliminar",
+                    f"El prefijo {prefijo} está asignado a {usados} funcionario(s).\n"
+                    "Cambie esos registros antes de eliminarlo.",
+                    parent=win)
+                return
+            if not messagebox.askyesno("Confirmar", f"¿Eliminar el prefijo {prefijo}?", parent=win):
+                return
+            eliminar_operadora(prefijo)
+            registrar_auditoria(self.usuario_actual, "ELIMINAR_OPERADORA", prefijo)
+            refrescar_op()
+
+        barra_op = Frame(tab_op, bg=self.bg_card)
+        barra_op.pack(fill=X, padx=10, pady=(0, 10))
+        Button(barra_op, text="Agregar", font=(FONT, 10), bg=self.success, fg="white",
+               relief="flat", borderwidth=0, cursor="hand2", command=agregar_op).pack(
+                   side=LEFT, padx=(0, 6), ipady=4)
+        Button(barra_op, text="Eliminar", font=(FONT, 10), bg=self.danger, fg="white",
+               relief="flat", borderwidth=0, cursor="hand2", command=eliminar_op).pack(side=LEFT, ipady=4)
+
+        refrescar_op()
 
     def gestionar_usuarios(self):
         win = Toplevel(self.root)
