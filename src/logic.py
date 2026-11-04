@@ -44,7 +44,7 @@ def _crear_tablas():
         CREATE TABLE IF NOT EXISTS funcionarios (
             cedula TEXT PRIMARY KEY,
             nombre TEXT, apellido TEXT, fecha_nacimiento TEXT, edad TEXT,
-            telefono TEXT, operadora TEXT, peso TEXT, altura TEXT, estado_civil TEXT, residencia TEXT,
+            telefono TEXT, operadora TEXT, peso TEXT, altura TEXT, genero TEXT, estado_civil TEXT, residencia TEXT,
             jerarquia TEXT, lugar_presta_servicio TEXT, tiempo_servicio TEXT, salario_mensual TEXT,
             terreno_propio TEXT, ubicacion_terreno TEXT, condicion_vivienda TEXT,
             necesidad_vivienda TEXT, organismo_publico TEXT, organismo_privado TEXT,
@@ -163,6 +163,7 @@ def _crear_tablas():
         "ALTER TABLE funcionarios ADD COLUMN egreso_grupo_familiar TEXT DEFAULT '0'",
         "ALTER TABLE funcionarios ADD COLUMN disponibilidad_economica TEXT DEFAULT '0'",
         "ALTER TABLE funcionarios ADD COLUMN operadora TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN genero TEXT",
         """CREATE TABLE IF NOT EXISTS egresos_mensuales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             funcionario_cedula TEXT REFERENCES funcionarios(cedula),
@@ -259,6 +260,7 @@ class Funcionario():
         self.estado_civil = estado_civil
         self.residencia = residencia
         self.operadora = ""
+        self.genero = ""
         self.grupo_familiar = []
         self.activo = 1
         # Atributos opcionales con valor por defecto para evitar AttributeError
@@ -382,6 +384,7 @@ def cargar_funcionarios(incluir_inactivos=False):
         f.posee_vivienda = row["posee_vivienda"] or "" if "posee_vivienda" in row.keys() else ""
         f.tenencia_tierra_otra = row["tenencia_tierra_otra"] or "" if "tenencia_tierra_otra" in row.keys() else ""
         f.operadora = row["operadora"] or "" if "operadora" in row.keys() else ""
+        f.genero = row["genero"] or "" if "genero" in row.keys() else ""
         keys = row.keys()
         f.ingreso_trabajador = (row["ingreso_trabajador"] or "0") if "ingreso_trabajador" in keys else "0"
         f.ingreso_familiar_adicional = (row["ingreso_familiar_adicional"] or "0") if "ingreso_familiar_adicional" in keys else "0"
@@ -427,7 +430,7 @@ def guardar_funcionarios(funcionarios):
         activo_val = existing["activo"] if existing else getattr(f, "activo", 1)
         cursor.execute("""
             INSERT OR REPLACE INTO funcionarios (
-                cedula, nombre, apellido, fecha_nacimiento, edad, telefono, operadora, peso, altura,
+                cedula, nombre, apellido, fecha_nacimiento, edad, telefono, operadora, genero, peso, altura,
                 estado_civil, residencia, jerarquia, lugar_presta_servicio, tiempo_servicio,
                 salario_mensual, terreno_propio, ubicacion_terreno, condicion_vivienda,
                 necesidad_vivienda, organismo_publico, organismo_privado,
@@ -437,9 +440,9 @@ def guardar_funcionarios(funcionarios):
                 ingreso_trabajador, ingreso_familiar_adicional, total_ingreso_familiar,
                 egreso_grupo_familiar, disponibilidad_economica,
                 activo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, getattr(f, "operadora", ""), f.peso,
+            f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, getattr(f, "operadora", ""), getattr(f, "genero", ""), f.peso,
             f.altura, f.estado_civil, f.residencia,
             getattr(f, "jerarquia", None), getattr(f, "lugar_presta_servicio", None),
             getattr(f, "tiempo_servicio", None), getattr(f, "salario_mensual", None),
@@ -614,6 +617,29 @@ def eliminar_catalogo(tipo, valor):
     cursor.execute("DELETE FROM catalogos WHERE tipo = ? AND valor = ?", (tipo, valor))
     conn.commit()
     conn.close()
+
+
+# --- Normalizacion de cedula y telefono ---
+
+def solo_digitos(valor):
+    return "".join(c for c in str(valor or "") if c.isdigit())
+
+def normalizar_cedula(valor):
+    """Devuelve 'V-<hasta 8 digitos>' o '' si no hay digitos."""
+    digitos = solo_digitos(valor)[:8]
+    return f"V-{digitos}" if digitos else ""
+
+def dividir_telefono(valor):
+    """Separa (prefijo, abonado) de formatos 0412..., +58..., 412...
+    Devuelve ('', '') si no hay digitos."""
+    d = solo_digitos(valor)
+    if d.startswith("58") and len(d) >= 12:
+        d = d[2:]
+    if len(d) == 11 and d.startswith("0"):
+        d = d[1:]
+    if len(d) >= 10:
+        return d[:3], d[-7:]
+    return "", d
 
 def operadora_de_telefono(telefono):
     tel = "".join(filter(str.isdigit, telefono))

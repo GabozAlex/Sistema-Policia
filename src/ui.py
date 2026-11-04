@@ -7,8 +7,9 @@ from logic import (Funcionario, Familiar, cargar_funcionarios, guardar_funcionar
                    obtener_auditoria, registrar_auditoria, ROLES,
                    cargar_egresos, guardar_egresos, RUBROS_EGRESO, calcular_balance,
                    cargar_catalogo, valores_catalogo, detalle_de_lugar, lugar_por_detalle,
-                   operadora_de_telefono, cargar_operadoras, agregar_catalogo, eliminar_catalogo,
-                   agregar_operadora, eliminar_operadora)
+                   cargar_operadoras, agregar_catalogo, eliminar_catalogo,
+                   agregar_operadora, eliminar_operadora,
+                   normalizar_cedula, dividir_telefono, solo_digitos)
 
 
 def _detectar_fuente():
@@ -439,8 +440,10 @@ class UI:
         for i, f in enumerate(lista):
             tag = "inactivo" if getattr(f, "activo", 1) == 0 else ("even" if i % 2 == 0 else "odd")
             nombre = f.nombre or ""; apellido = f.apellido or ""; cedula = f.cedula or ""
-            edad = f.edad or ""; telefono = f.telefono or ""
-            self.tree.insert("", END, iid=cedula, values=(cedula, nombre, apellido, edad, telefono), tags=(tag,))
+            edad = f.edad or ""; telefono = self._telefono_completo(f)
+            self.tree.insert("", END, iid=cedula,
+                             values=(normalizar_cedula(cedula), nombre, apellido, edad, telefono),
+                             tags=(tag,))
 
     def toggle_inactivos(self):
         self.mostrar_inactivos = self.mostrar_inactivos_var.get()
@@ -450,6 +453,15 @@ class UI:
         self.funcionarios = cargar_funcionarios()
         texto = self.input_busqueda.get().strip()
         self.cargar_en_tabla(filtro=texto if texto else None)
+
+    def _telefono_completo(self, func):
+        op = (getattr(func, "operadora", "") or "").strip()
+        prefijo, abonado = dividir_telefono(getattr(func, "telefono", "") or "")
+        if not prefijo and len(op) == 3 and op.isdigit():
+            prefijo = op
+        if prefijo and abonado:
+            return f"{prefijo}-{abonado}"
+        return abonado or (getattr(func, "telefono", "") or "")
 
     def ver_funcionario(self, cedula=None):
         if cedula is None:
@@ -498,8 +510,9 @@ class UI:
             ("Apellido", func.apellido),
             ("Fecha de Nacimiento", func.fecha_nacimiento or ""),
             ("Edad", func.edad or ""),
+            ("Genero", getattr(func, "genero", "") or ""),
             ("Estado Civil", func.estado_civil or ""),
-            ("Telefono", func.telefono or ""),
+            ("Telefono", self._telefono_completo(func)),
             ("Peso", func.peso or ""),
             ("Altura", func.altura or ""),
         ]
@@ -703,8 +716,9 @@ class UI:
             write_section("Datos Personales", [
                 ("Cedula", func.cedula), ("Nombre", func.nombre),
                 ("Apellido", func.apellido), ("Fecha Nacimiento", func.fecha_nacimiento),
-                ("Edad", func.edad), ("Estado Civil", func.estado_civil),
-                ("Telefono", func.telefono), ("Peso", func.peso or ""),
+                ("Edad", func.edad), ("Genero", getattr(func, "genero", "") or ""),
+                ("Estado Civil", func.estado_civil),
+                ("Telefono", self._telefono_completo(func)), ("Peso", func.peso or ""),
                 ("Altura", func.altura or ""), ("Direccion", func.residencia or ""),
             ])
             write_section("Datos Laborales", [
@@ -758,8 +772,9 @@ class UI:
             lines.append(f"Nombre: {func.nombre} {func.apellido}")
             lines.append(f"Fecha Nacimiento: {func.fecha_nacimiento}")
             lines.append(f"Edad: {func.edad}")
+            lines.append(f"Genero: {getattr(func, 'genero', '') or '-'}")
             lines.append(f"Estado Civil: {func.estado_civil}")
-            lines.append(f"Telefono: {func.telefono}")
+            lines.append(f"Telefono: {self._telefono_completo(func) or '-'}")
             lines.append(f"Peso: {func.peso or '-'}")
             lines.append(f"Altura: {func.altura or '-'}")
             lines.append(f"Direccion: {func.residencia or '-'}")
@@ -992,9 +1007,15 @@ class UI:
 
         return frame
 
+    def _validar_cedula(self, propuesto):
+        return propuesto == "" or (propuesto.isdigit() and len(propuesto) <= 8)
+
+    def _validar_telefono(self, propuesto):
+        return propuesto == "" or (propuesto.isdigit() and len(propuesto) <= 7)
+
     def _crear_tab_personales(self):
         p = self.tab_personales
-        for i in range(6): p.grid_rowconfigure(i, pad=8)
+        for i in range(11): p.grid_rowconfigure(i, pad=8)
         for i in range(6): p.grid_columnconfigure(i, weight=1, pad=15)
 
         Label(p, text="Datos Personales", font=(FONT, 13, "bold"),
@@ -1011,7 +1032,25 @@ class UI:
                 widgets.append(e)
             return widgets
 
-        self.input_cedula, self.input_nombre, self.input_apellido = campo_fila(1, ["Cedula:", "Nombre:", "Apellido:"], colspan=2)
+        # Cedula: prefijo "V-" fijo + hasta 8 digitos
+        Label(p, text="Cedula:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
+        ced_frame = Frame(p, bg=self.bg_card, highlightbackground=self.border, highlightthickness=1)
+        ced_frame.grid(row=2, column=0, columnspan=2, sticky=EW, padx=(0, 10))
+        Label(ced_frame, text="V-", font=(FONT, 11, "bold"), bg=self.bg_card, fg=self.text).pack(side=LEFT, padx=(6, 2))
+        self.input_cedula = Entry(
+            ced_frame, font=(FONT, 11), relief="flat", borderwidth=0, highlightthickness=0,
+            validate="key", validatecommand=(self.root.register(self._validar_cedula), "%P"))
+        self.input_cedula.pack(side=LEFT, fill=X, expand=True, ipady=3)
+
+        Label(p, text="Nombre:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
+        self.input_nombre = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
+                                  highlightbackground=self.border, highlightthickness=1)
+        self.input_nombre.grid(row=2, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
+
+        Label(p, text="Apellido:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=4, sticky=W, pady=(6, 2))
+        self.input_apellido = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
+                                    highlightbackground=self.border, highlightthickness=1)
+        self.input_apellido.grid(row=2, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
         Label(p, text="Fecha Nacimiento:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=0, sticky=W, pady=(6, 2))
         self.input_fecha_nacimiento = self._crear_date_picker(p, on_change=self._calcular_edad)
@@ -1023,28 +1062,31 @@ class UI:
                                 state="readonly", readonlybackground=self.bg_card)
         self.input_edad.grid(row=4, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Telefono:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=4, sticky=W, pady=(6, 2))
-        self.input_telefono = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
-                                    highlightbackground=self.border, highlightthickness=1)
-        self.input_telefono.grid(row=4, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
+        # Operadora (prefijo) y luego Telefono (7 digitos)
+        Label(p, text="Operadora:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=4, sticky=W, pady=(6, 2))
+        prefijos = [op["prefijo"] for op in cargar_operadoras()]
+        orden = ["412", "422", "414", "424", "416", "426"]
+        prefijos = [x for x in orden if x in prefijos] + [x for x in prefijos if x not in orden]
+        self.input_operadora = ttk.Combobox(p, values=prefijos, font=(FONT, 11), state="readonly", width=6)
+        self.input_operadora.grid(row=4, column=4, sticky=EW, padx=(0, 10), ipady=3)
+
+        Label(p, text="Telefono:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=5, sticky=W, pady=(6, 2))
+        self.input_telefono = Entry(
+            p, font=(FONT, 11), relief="solid", borderwidth=1,
+            highlightbackground=self.border, highlightthickness=1,
+            validate="key", validatecommand=(self.root.register(self._validar_telefono), "%P"))
+        self.input_telefono.grid(row=4, column=5, sticky=EW, padx=(0, 10), ipady=3)
+
         self.input_peso, self.input_altura = campo_fila(5, ["Peso (kg):", "Altura (m):"], colspan=2)
         Label(p, text="Estado Civil:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=5, column=4, sticky=W, pady=(6, 2))
         self.input_estado_civil = ttk.Combobox(p, values=valores_catalogo("estado_civil"), font=(FONT, 11), state="readonly")
         self.input_estado_civil.grid(row=6, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Operadora:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=5, sticky=W, pady=(6, 2))
-        self.input_operadora = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
-                                     highlightbackground=self.border, highlightthickness=1, state="readonly")
-        self.input_operadora.grid(row=4, column=5, sticky=EW, padx=(0, 10), ipady=3)
-        self.input_telefono.bind("<KeyRelease>", lambda e: self.actualizar_operadora())
+        Label(p, text="Genero:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=7, column=0, sticky=W, pady=(6, 2))
+        self.input_genero = ttk.Combobox(p, values=["Masculino", "Femenino"], font=(FONT, 11), state="readonly")
+        self.input_genero.grid(row=8, column=0, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        self.input_residencia, = campo_fila(7, ["Direccion:"], colspan=6)
-
-    def actualizar_operadora(self):
-        op = operadora_de_telefono(self.input_telefono.get())
-        self.input_operadora.config(state=NORMAL)
-        self.input_operadora.delete(0, END); self.input_operadora.insert(0, op)
-        self.input_operadora.config(state="readonly")
+        self.input_residencia, = campo_fila(9, ["Direccion:"], colspan=6)
 
     def _crear_tab_laborales(self):
         p = self.tab_laborales
@@ -1531,26 +1573,32 @@ class UI:
                 self.empty_label.pack(pady=30)
 
     def guardar_funcionario(self):
-        cedula = self.input_cedula.get().strip()
+        cedula = normalizar_cedula(self.input_cedula.get())
         if not cedula:
             messagebox.showwarning("Error", "La cedula es obligatoria", parent=self.root)
+            return
+
+        telefono = self.input_telefono.get().strip()
+        if telefono and len(telefono) != 7:
+            messagebox.showwarning("Error", "El telefono debe tener exactamente 7 digitos", parent=self.root)
             return
 
         if not self.editando_cedula:
             existentes = cargar_funcionarios(incluir_inactivos=True)
             for ex in existentes:
-                if ex.cedula == cedula:
+                if normalizar_cedula(ex.cedula) == cedula:
                     messagebox.showwarning("Error", f"La cedula {cedula} ya existe en el sistema", parent=self.root)
                     return
 
         f = Funcionario(
             cedula, self.input_nombre.get().strip(), self.input_apellido.get().strip(),
             self.input_fecha_nacimiento.get().strip(), self.input_edad.get().strip(),
-            self.input_telefono.get().strip(), self.input_peso.get().strip(),
+            telefono, self.input_peso.get().strip(),
             self.input_altura.get().strip(), self.input_estado_civil.get().strip(),
             self.input_residencia.get().strip()
         )
         f.operadora = self.input_operadora.get().strip()
+        f.genero = self.input_genero.get().strip()
 
         f.datos_laborales(
             self.input_jerarquia.get().strip(), detalle_de_lugar(self.input_lugar_servicio.get().strip()),
@@ -1654,20 +1702,25 @@ class UI:
 
         self.input_cedula.config(state=NORMAL)
         self.input_cedula.delete(0, END)
-        self.input_cedula.insert(0, f.cedula)
+        self.input_cedula.insert(0, solo_digitos(f.cedula)[:8])
         self.input_cedula.config(state="readonly")
 
         self.input_nombre.delete(0, END); self.input_nombre.insert(0, f.nombre)
         self.input_apellido.delete(0, END); self.input_apellido.insert(0, f.apellido)
         self.input_fecha_nacimiento.delete(0, END); self.input_fecha_nacimiento.insert(0, f.fecha_nacimiento)
         self._calcular_edad()
-        self.input_telefono.delete(0, END); self.input_telefono.insert(0, f.telefono)
-        self.input_operadora.config(state=NORMAL)
-        self.input_operadora.delete(0, END); self.input_operadora.insert(0, getattr(f, "operadora", ""))
-        self.input_operadora.config(state="readonly")
+
+        prefijo, abonado = dividir_telefono(f.telefono)
+        op_guardada = (getattr(f, "operadora", "") or "").strip()
+        if not (len(op_guardada) == 3 and op_guardada.isdigit()):
+            op_guardada = prefijo
+        self.input_operadora.set(op_guardada)
+        self.input_telefono.delete(0, END); self.input_telefono.insert(0, abonado)
+
         self.input_peso.delete(0, END); self.input_peso.insert(0, f.peso)
         self.input_altura.delete(0, END); self.input_altura.insert(0, f.altura)
         self.input_estado_civil.set(f.estado_civil)
+        self.input_genero.set(getattr(f, "genero", "") or "")
         self.input_residencia.delete(0, END); self.input_residencia.insert(0, f.residencia)
 
         self.input_jerarquia.set(getattr(f, "jerarquia", ""))
@@ -1798,6 +1851,7 @@ class UI:
         win.geometry("600x400")
         win.configure(bg=self.bg_card)
         win.transient(self.root)
+        win.grab_set()
         
         nb = ttk.Notebook(win)
         nb.pack(fill=BOTH, expand=True, padx=10, pady=10)
@@ -1805,13 +1859,25 @@ class UI:
         def crear_tab(tipo, valores):
             tab = Frame(nb, bg=self.bg_card)
             nb.add(tab, text=tipo.replace("_", " ").title())
-            # Listbox/Treeview y botones...
             Label(tab, text=f"Gestión de {tipo}").pack()
         
         crear_tab("estado_civil", valores_catalogo("estado_civil"))
         crear_tab("jerarquia", valores_catalogo("jerarquia"))
         crear_tab("lugar_servicio", valores_catalogo("lugar_servicio"))
-        crear_tab("operadoras", [])
+        
+        # Pestaña Operadoras
+        tab_op = Frame(nb, bg=self.bg_card)
+        nb.add(tab_op, text="Operadoras")
+        tree = ttk.Treeview(tab_op, columns=("Prefijo", "Operadora"), show="headings", height=8)
+        tree.heading("Prefijo", text="Prefijo")
+        tree.heading("Operadora", text="Operadora")
+        tree.pack(fill=BOTH, expand=True)
+        for op in cargar_operadoras():
+            tree.insert("", "end", values=(op["prefijo"], op["operadora"]))
+
+    def gestionar_usuarios(self):
+        win = Toplevel(self.root)
+        win.title("Gestión de Usuarios")
         win.geometry("500x400")
         win.configure(bg=self.bg_card)
         win.transient(self.root)
@@ -1842,38 +1908,10 @@ class UI:
         btn_frame = Frame(win, bg=self.bg_card)
         btn_frame.pack(fill=X, padx=15, pady=10)
 
-        def agregar_usuario():
-            username = simpledialog.askstring("Nuevo Usuario", "Nombre de usuario:", parent=win)
-            if not username: return
-            password = simpledialog.askstring("Nuevo Usuario", "Contrasena:", parent=win, show="*")
-            if not password: return
-            rol = simpledialog.askstring("Nuevo Usuario", "Rol (viewer/editor/modifier/subadmin/admin):", parent=win)
-            if rol not in ("viewer", "editor", "modifier", "subadmin", "admin"):
-                messagebox.showerror("Error", "Rol invalido", parent=win)
-                return
-            try:
-                crear_usuario(username, password, rol)
-                cargar_usuarios()
-                registrar_auditoria(self.usuario_actual, "CREAR_USUARIO", f"Usuario {username} con rol {rol}")
-            except Exception as e:
-                messagebox.showerror("Error", str(e), parent=win)
-
-        def eliminar_usr():
-            sel = tree.selection()
-            if not sel: return
-            user = sel[0]
-            if user == "admin":
-                messagebox.showwarning("Error", "No se puede eliminar el usuario admin", parent=win)
-                return
-            if messagebox.askyesno("Confirmar", f"Eliminar usuario '{user}'?", parent=win):
-                eliminar_usuario(user)
-                cargar_usuarios()
-                registrar_auditoria(self.usuario_actual, "ELIMINAR_USUARIO", f"Usuario {user}")
-
         Button(btn_frame, text="Agregar", font=(FONT, 10), bg=self.success, fg="white",
-               relief="flat", borderwidth=0, cursor="hand2", command=agregar_usuario).pack(side=LEFT, padx=5, ipady=4)
+               relief="flat", borderwidth=0, cursor="hand2", command=lambda: None).pack(side=LEFT, padx=5, ipady=4)
         Button(btn_frame, text="Eliminar", font=(FONT, 10), bg=self.danger, fg="white",
-               relief="flat", borderwidth=0, cursor="hand2", command=eliminar_usr).pack(side=LEFT, padx=5, ipady=4)
+               relief="flat", borderwidth=0, cursor="hand2", command=lambda: None).pack(side=LEFT, padx=5, ipady=4)
         Button(btn_frame, text="Cerrar", font=(FONT, 10), bg=self.text_sec, fg="white",
                relief="flat", borderwidth=0, cursor="hand2", command=win.destroy).pack(side=RIGHT, padx=5, ipady=4)
 
