@@ -136,7 +136,49 @@ def _crear_tablas():
         ('profesion', 'Humanidades / Letras / Artes', '', 8),
         ('profesion', 'Ciencias Sociales (Sociología, Psicología, Trabajo Social, etc.)', '', 9),
         ('profesion', 'Agronomía / Zootecnia', '', 10),
-        ('profesion', 'Otra', '', 11);
+        ('profesion', 'Otra', '', 11),
+        ('condicion_vivienda', 'Buena', '', 1),
+        ('condicion_vivienda', 'Regular', '', 2),
+        ('condicion_vivienda', 'Mala (requiere reparaciones menores)', '', 3),
+        ('condicion_vivienda', 'Muy mala / inhabitable', '', 4),
+        ('municipio', 'Antolín del Campo', '', 1),
+        ('municipio', 'Arismendi', '', 2),
+        ('municipio', 'Antonio Díaz', '', 3),
+        ('municipio', 'García', '', 4),
+        ('municipio', 'Gómez', '', 5),
+        ('municipio', 'Maneiro', '', 6),
+        ('municipio', 'Marcano', '', 7),
+        ('municipio', 'Mariño', '', 8),
+        ('municipio', 'Península de Macanao', '', 9),
+        ('municipio', 'Tubores', '', 10),
+        ('municipio', 'Villalba', '', 11),
+        ('pueblo', 'La Plaza de Paraguachí', 'Antolín del Campo', 1),
+        ('pueblo', 'Paraguachí', 'Antolín del Campo', 2),
+        ('pueblo', 'La Asunción', 'Arismendi', 3),
+        ('pueblo', 'Atamo', 'Arismendi', 4),
+        ('pueblo', 'San Juan Bautista', 'Antonio Díaz', 5),
+        ('pueblo', 'La Guardia', 'Antonio Díaz', 6),
+        ('pueblo', 'Playa El Yaque', 'Antonio Díaz', 7),
+        ('pueblo', 'El Valle del Espíritu Santo', 'García', 8),
+        ('pueblo', 'Villa Rosa', 'García', 9),
+        ('pueblo', 'Las Guevaras', 'García', 10),
+        ('pueblo', 'Santa Ana', 'Gómez', 11),
+        ('pueblo', 'Tacarigua', 'Gómez', 12),
+        ('pueblo', 'Pedro González', 'Gómez', 13),
+        ('pueblo', 'Altagracia', 'Gómez', 14),
+        ('pueblo', 'El Maco', 'Gómez', 15),
+        ('pueblo', 'Pampatar', 'Maneiro', 16),
+        ('pueblo', 'Los Robles', 'Maneiro', 17),
+        ('pueblo', 'El Pilar', 'Maneiro', 18),
+        ('pueblo', 'Juan Griego', 'Marcano', 19),
+        ('pueblo', 'Los Millanes', 'Marcano', 20),
+        ('pueblo', 'Porlamar', 'Mariño', 21),
+        ('pueblo', 'Bella Vista', 'Mariño', 22),
+        ('pueblo', 'Boca de Río', 'Península de Macanao', 23),
+        ('pueblo', 'Boca de Pozo', 'Península de Macanao', 24),
+        ('pueblo', 'Punta de Piedras', 'Tubores', 25),
+        ('pueblo', 'El Guamache', 'Tubores', 26),
+        ('pueblo', 'San Pedro de Coche', 'Villalba', 27);
         
         INSERT OR IGNORE INTO operadora_prefijos (prefijo, operadora) VALUES
         ('412', 'Digitel'), ('422', 'Digitel'),
@@ -191,6 +233,8 @@ def _crear_tablas():
         "ALTER TABLE funcionarios ADD COLUMN disponibilidad_economica TEXT DEFAULT '0'",
         "ALTER TABLE funcionarios ADD COLUMN operadora TEXT",
         "ALTER TABLE funcionarios ADD COLUMN genero TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN municipio TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN pueblo TEXT",
         """CREATE TABLE IF NOT EXISTS egresos_mensuales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             funcionario_cedula TEXT REFERENCES funcionarios(cedula),
@@ -298,6 +342,8 @@ class Funcionario():
         self.terreno_propio = ""
         self.ubicacion_terreno = ""
         self.condicion_vivienda = ""
+        self.municipio = ""
+        self.pueblo = ""
         self.necesidad_vivienda = ""
         self.organismo_publico = ""
         self.organismo_privado = ""
@@ -338,10 +384,12 @@ class Funcionario():
         self.tiempo_servicio = tiempo_servicio
         self.salario_mensual = salario_mensual
 
-    def plan_vivienda(self, terreno_propio, ubicacion_terreno, condicion_vivienda, necesidad_vivienda, organismo_publico, organismo_privado, gestion_organismo_oficial, fecha_gestion):
+    def plan_vivienda(self, terreno_propio, ubicacion_terreno, condicion_vivienda, municipio, pueblo, necesidad_vivienda, organismo_publico, organismo_privado, gestion_organismo_oficial, fecha_gestion):
         self.terreno_propio = terreno_propio
         self.ubicacion_terreno = ubicacion_terreno
         self.condicion_vivienda = condicion_vivienda
+        self.municipio = municipio
+        self.pueblo = pueblo
         self.necesidad_vivienda = necesidad_vivienda
         self.gestion_organismo_oficial = gestion_organismo_oficial
         self.organismo_publico = organismo_publico
@@ -399,9 +447,10 @@ def cargar_funcionarios(incluir_inactivos=False):
         )
         f.plan_vivienda(
             row["terreno_propio"] or "", row["ubicacion_terreno"] or "",
-            row["condicion_vivienda"] or "", row["necesidad_vivienda"] or "",
-            row["organismo_publico"] or "", row["organismo_privado"] or "",
-            row["gestion_organismo_oficial"] or "", row["fecha_gestion"] or ""
+            row["condicion_vivienda"] or "", row["municipio"] or "", row["pueblo"] or "",
+            row["necesidad_vivienda"] or "", row["organismo_publico"] or "",
+            row["organismo_privado"] or "", row["gestion_organismo_oficial"] or "",
+            row["fecha_gestion"] or ""
         )
         f.estado_vivienda(
             row["tenencia_tierra"] or "", row["ambiente_vivienda"] or "",
@@ -459,7 +508,7 @@ def guardar_funcionarios(funcionarios):
             INSERT OR REPLACE INTO funcionarios (
                 cedula, nombre, apellido, fecha_nacimiento, edad, telefono, operadora, genero, peso, altura,
                 estado_civil, residencia, jerarquia, lugar_presta_servicio, tiempo_servicio,
-                salario_mensual, terreno_propio, ubicacion_terreno, condicion_vivienda,
+                salario_mensual, terreno_propio, ubicacion_terreno, condicion_vivienda, municipio, pueblo,
                 necesidad_vivienda, organismo_publico, organismo_privado,
                 gestion_organismo_oficial, fecha_gestion, tenencia_tierra, ambiente_vivienda,
                 tiempo_ocupacion, servicio_vivienda_disponible, materiales_vivienda, servicio_comunidad,
@@ -467,14 +516,15 @@ def guardar_funcionarios(funcionarios):
                 ingreso_trabajador, ingreso_familiar_adicional, total_ingreso_familiar,
                 egreso_grupo_familiar, disponibilidad_economica,
                 activo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, getattr(f, "operadora", ""), getattr(f, "genero", ""), f.peso,
             f.altura, f.estado_civil, f.residencia,
             getattr(f, "jerarquia", None), getattr(f, "lugar_presta_servicio", None),
             getattr(f, "tiempo_servicio", None), getattr(f, "salario_mensual", None),
             getattr(f, "terreno_propio", None), getattr(f, "ubicacion_terreno", None),
-            getattr(f, "condicion_vivienda", None), getattr(f, "necesidad_vivienda", None),
+            getattr(f, "condicion_vivienda", None), getattr(f, "municipio", None), getattr(f, "pueblo", None),
+            getattr(f, "necesidad_vivienda", None),
             getattr(f, "organismo_publico", None), getattr(f, "organismo_privado", None),
             getattr(f, "gestion_organismo_oficial", None), getattr(f, "fecha_gestion", None),
             getattr(f, "tenencia_tierra", None), getattr(f, "ambiente_vivienda", None),
