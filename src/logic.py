@@ -1,9 +1,19 @@
 import sqlite3
 import os
+import sys
 from datetime import datetime
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 DB_NAME = "funcionarios_prueba.db" if os.environ.get("DB_MODE") == "test" else "funcionarios.db"
+
+if getattr(sys, "frozen", False):
+    # PyInstaller congelado: la BD debe vivir fuera de la carpeta temporal (_MEIPASS)
+    if os.name == "nt":
+        _base_dir = os.environ.get("APPDATA", os.path.expanduser("~"))
+    else:
+        _base_dir = os.path.join(os.path.expanduser("~"), ".local", "share")
+    DATA_DIR = os.path.join(_base_dir, "SistemaPolicia", "data")
+else:
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 DB_FILE = os.path.join(DATA_DIR, DB_NAME)
 
 
@@ -18,16 +28,35 @@ def _crear_tablas():
     conn = _get_connection()
     cursor = conn.cursor()
     cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS catalogos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            valor TEXT NOT NULL,
+            detalle TEXT DEFAULT '',
+            orden INTEGER DEFAULT 0,
+            activo INTEGER DEFAULT 1,
+            UNIQUE(tipo, valor)
+        );
+        CREATE TABLE IF NOT EXISTS operadora_prefijos (
+            prefijo TEXT PRIMARY KEY,
+            operadora TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS funcionarios (
             cedula TEXT PRIMARY KEY,
             nombre TEXT, apellido TEXT, fecha_nacimiento TEXT, edad TEXT,
-            telefono TEXT, peso TEXT, altura TEXT, estado_civil TEXT, residencia TEXT,
+            telefono TEXT, operadora TEXT, peso TEXT, altura TEXT, genero TEXT, estado_civil TEXT, residencia TEXT,
             jerarquia TEXT, lugar_presta_servicio TEXT, tiempo_servicio TEXT, salario_mensual TEXT,
             terreno_propio TEXT, ubicacion_terreno TEXT, condicion_vivienda TEXT,
             necesidad_vivienda TEXT, organismo_publico TEXT, organismo_privado TEXT,
             gestion_organismo_oficial TEXT, fecha_gestion TEXT,
             tenencia_tierra TEXT, ambiente_vivienda TEXT, tiempo_ocupacion TEXT,
             servicio_vivienda_disponible TEXT, materiales_vivienda TEXT, servicio_comunidad TEXT,
+            posee_vivienda TEXT, tenencia_tierra_otra TEXT,
+            ingreso_trabajador TEXT DEFAULT '0',
+            ingreso_familiar_adicional TEXT DEFAULT '0',
+            total_ingreso_familiar TEXT DEFAULT '0',
+            egreso_grupo_familiar TEXT DEFAULT '0',
+            disponibilidad_economica TEXT DEFAULT '0',
             activo INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS familiares (
@@ -36,6 +65,13 @@ def _crear_tablas():
             nombre TEXT, apellido TEXT, parentesco TEXT, edad TEXT,
             genero TEXT, estado_civil TEXT, nivel_educacion TEXT,
             profesion_oficio TEXT, lugar_trabajo TEXT, ingreso_mensual TEXT, observacion TEXT
+        );
+        CREATE TABLE IF NOT EXISTS egresos_mensuales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            funcionario_cedula TEXT REFERENCES funcionarios(cedula),
+            rubro TEXT NOT NULL,
+            monto TEXT DEFAULT '0',
+            observacion TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS usuarios (
             username TEXT PRIMARY KEY,
@@ -47,6 +83,38 @@ def _crear_tablas():
             usuario TEXT, accion TEXT, detalle TEXT,
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+    """)
+    # Sembrar catálogos
+    cursor.executescript("""
+        INSERT OR IGNORE INTO catalogos (tipo, valor, detalle, orden) VALUES
+        ('estado_civil', 'Soltero/a', '', 1),
+        ('estado_civil', 'Casado/a', '', 2),
+        ('estado_civil', 'Divorciado/a', '', 3),
+        ('estado_civil', 'Viudo/a', '', 4),
+        ('estado_civil', 'Separado/a', '', 5),
+        ('estado_civil', 'Unión libre / Pareja de hecho', '', 6),
+        ('jerarquia', 'Oficial', '', 1),
+        ('jerarquia', 'Oficial Agregado', '', 2),
+        ('jerarquia', 'Oficial Jefe', '', 3),
+        ('jerarquia', 'Supervisor', '', 4),
+        ('jerarquia', 'Supervisor Agregado', '', 5),
+        ('jerarquia', 'Supervisor Jefe', '', 6),
+        ('jerarquia', 'Comisionado', '', 7),
+        ('jerarquia', 'Comisionado Agregado', '', 8),
+        ('jerarquia', 'Comisionado Jefe', '', 9),
+        ('lugar_servicio', 'Sede Central', 'Av. Simón Bolívar, La Asunción (Arismendi)', 1),
+        ('lugar_servicio', 'Estación Arismendi', 'La Asunción', 2),
+        ('lugar_servicio', 'Base Boca del Río', 'Calle Las Marinas, Península de Macanao', 3),
+        ('lugar_servicio', 'Base Boca de Pozo', 'Parroquia San Francisco, Península de Macanao', 4),
+        ('lugar_servicio', 'Comando García', 'Calle Principal, Villa Rosa, Fajardo', 5),
+        ('lugar_servicio', 'Estación Díaz', 'Urbanismo Carcanapiral, municipio Díaz', 6),
+        ('lugar_servicio', 'Estación Tubores', 'C. Colón, Punta de Piedras', 7),
+        ('lugar_servicio', 'Base Sabanamar', 'Porlamar (municipio Mariño)', 8);
+        
+        INSERT OR IGNORE INTO operadora_prefijos (prefijo, operadora) VALUES
+        ('412', 'Digitel'), ('422', 'Digitel'),
+        ('414', 'Movistar'), ('424', 'Movistar'),
+        ('416', 'Movilnet'), ('426', 'Movilnet');
     """)
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
@@ -82,15 +150,99 @@ def _crear_tablas():
     conn.commit()
     conn.close()
 
-    # Migration: add activo column if missing
+    # Migration: add missing columns to existing databases
+    conn = _get_connection()
+    cursor = conn.cursor()
+    for stmt in (
+        "ALTER TABLE funcionarios ADD COLUMN activo INTEGER DEFAULT 1",
+        "ALTER TABLE funcionarios ADD COLUMN posee_vivienda TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN tenencia_tierra_otra TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN ingreso_trabajador TEXT DEFAULT '0'",
+        "ALTER TABLE funcionarios ADD COLUMN ingreso_familiar_adicional TEXT DEFAULT '0'",
+        "ALTER TABLE funcionarios ADD COLUMN total_ingreso_familiar TEXT DEFAULT '0'",
+        "ALTER TABLE funcionarios ADD COLUMN egreso_grupo_familiar TEXT DEFAULT '0'",
+        "ALTER TABLE funcionarios ADD COLUMN disponibilidad_economica TEXT DEFAULT '0'",
+        "ALTER TABLE funcionarios ADD COLUMN operadora TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN genero TEXT",
+        """CREATE TABLE IF NOT EXISTS egresos_mensuales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            funcionario_cedula TEXT REFERENCES funcionarios(cedula),
+            rubro TEXT NOT NULL,
+            monto TEXT DEFAULT '0',
+            observacion TEXT DEFAULT ''
+        )""",
+        "CREATE TABLE IF NOT EXISTS catalogos (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL, valor TEXT NOT NULL, detalle TEXT DEFAULT '', orden INTEGER DEFAULT 0, activo INTEGER DEFAULT 1, UNIQUE(tipo, valor))",
+        "CREATE TABLE IF NOT EXISTS operadora_prefijos (prefijo TEXT PRIMARY KEY, operadora TEXT NOT NULL)"
+    ):
+        try:
+            cursor.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+    conn.commit()
+    conn.close()
+
+
+# Rubros fijos de la distribución del ingreso familiar
+RUBROS_EGRESO = [
+    "Vivienda propia", "Alquiler", "Alimentación", "Condominio",
+    "Luz", "Agua", "Teléfono", "Gas", "Transporte",
+    "Enseres personales", "Educación", "Medicina",
+    "Capacidad de ahorro", "Compras a créditos", "Otros",
+]
+
+
+def _parse_monto(valor):
     try:
-        conn = _get_connection()
-        cursor = conn.cursor()
-        cursor.execute("ALTER TABLE funcionarios ADD COLUMN activo INTEGER DEFAULT 1")
-        conn.commit()
-        conn.close()
-    except sqlite3.OperationalError:
-        pass
+        return float(str(valor or "0").replace(",", "").strip() or 0)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def calcular_balance(ingreso_trabajador, ingreso_familiar_adicional, egresos):
+    """Retorna (total_ingreso, egreso_total, disponibilidad). egresos: lista de montos o dicts."""
+    total_ingreso = _parse_monto(ingreso_trabajador) + _parse_monto(ingreso_familiar_adicional)
+    egreso_total = 0.0
+    for e in egresos:
+        monto = e.get("monto", 0) if isinstance(e, dict) else e
+        egreso_total += _parse_monto(monto)
+    disponibilidad = total_ingreso - egreso_total
+    return total_ingreso, egreso_total, disponibilidad
+
+
+def cargar_egresos(cedula):
+    """Lista de dicts {rubro, monto, observacion} para un funcionario (vacío si no hay)."""
+    _crear_tablas()
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT rubro, monto, observacion FROM egresos_mensuales WHERE funcionario_cedula = ? ORDER BY id",
+        (cedula,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"rubro": r["rubro"], "monto": r["monto"] or "0",
+             "observacion": r["observacion"] or ""} for r in rows]
+
+
+def _guardar_egresos_cursor(cursor, cedula, egresos):
+    """Reemplaza egresos usando un cursor existente (evita bloqueo de BD)."""
+    cursor.execute("DELETE FROM egresos_mensuales WHERE funcionario_cedula = ?", (cedula,))
+    for e in egresos:
+        cursor.execute(
+            "INSERT INTO egresos_mensuales (funcionario_cedula, rubro, monto, observacion) VALUES (?, ?, ?, ?)",
+            (cedula, e.get("rubro", ""), str(e.get("monto", "0") or "0"),
+             e.get("observacion", "") or ""),
+        )
+
+
+def guardar_egresos(cedula, egresos):
+    """Reemplaza todos los egresos del funcionario. egresos: lista de dicts {rubro, monto, observacion}."""
+    _crear_tablas()
+    conn = _get_connection()
+    cursor = conn.cursor()
+    _guardar_egresos_cursor(cursor, cedula, egresos)
+    conn.commit()
+    conn.close()
 
 
 # --- Funcionario ---
@@ -107,7 +259,48 @@ class Funcionario():
         self.altura = altura
         self.estado_civil = estado_civil
         self.residencia = residencia
+        self.operadora = ""
+        self.genero = ""
         self.grupo_familiar = []
+        self.activo = 1
+        # Atributos opcionales con valor por defecto para evitar AttributeError
+        self.jerarquia = ""
+        self.lugar_presta_servicio = ""
+        self.tiempo_servicio = ""
+        self.salario_mensual = ""
+        self.terreno_propio = ""
+        self.ubicacion_terreno = ""
+        self.condicion_vivienda = ""
+        self.necesidad_vivienda = ""
+        self.organismo_publico = ""
+        self.organismo_privado = ""
+        self.gestion_organismo_oficial = ""
+        self.fecha_gestion = ""
+        self.posee_vivienda = ""
+        self.tenencia_tierra = ""
+        self.tenencia_tierra_otra = ""
+        self.ambiente_vivienda = ""
+        self.tiempo_ocupacion = ""
+        self.servicio_vivienda_disponible = ""
+        self.materiales_vivienda = ""
+        self.servicio_comunidad = ""
+        self.ingreso_trabajador = "0"
+        self.ingreso_familiar_adicional = "0"
+        self.total_ingreso_familiar = "0"
+        self.egreso_grupo_familiar = "0"
+        self.disponibilidad_economica = "0"
+        self.egresos_mensuales = []
+
+    def balance_socioeconomico(self, ingreso_trabajador, ingreso_familiar_adicional,
+                               total_ingreso_familiar, egreso_grupo_familiar,
+                               disponibilidad_economica, egresos=None):
+        self.ingreso_trabajador = ingreso_trabajador or "0"
+        self.ingreso_familiar_adicional = ingreso_familiar_adicional or "0"
+        self.total_ingreso_familiar = total_ingreso_familiar or "0"
+        self.egreso_grupo_familiar = egreso_grupo_familiar or "0"
+        self.disponibilidad_economica = disponibilidad_economica or "0"
+        if egresos is not None:
+            self.egresos_mensuales = list(egresos)
 
     def agregar_familiar(self, familiar):
         self.grupo_familiar.append(familiar)
@@ -172,20 +365,40 @@ def cargar_funcionarios(incluir_inactivos=False):
             row["fecha_nacimiento"], row["edad"], row["telefono"],
             row["peso"], row["altura"], row["estado_civil"], row["residencia"]
         )
-        f._activo = row["activo"]
-        fields_laborales = ["jerarquia", "lugar_presta_servicio", "tiempo_servicio", "salario_mensual"]
-        if row["jerarquia"]:
-            f.datos_laborales(*(row[c] for c in fields_laborales))
-
-        fields_vivienda = ["terreno_propio", "ubicacion_terreno", "condicion_vivienda", "necesidad_vivienda",
-                          "organismo_publico", "organismo_privado", "gestion_organismo_oficial", "fecha_gestion"]
-        if row["terreno_propio"]:
-            f.plan_vivienda(*(row[c] for c in fields_vivienda))
-
-        fields_estado = ["tenencia_tierra", "ambiente_vivienda", "tiempo_ocupacion",
-                        "servicio_vivienda_disponible", "materiales_vivienda", "servicio_comunidad"]
-        if row["tenencia_tierra"]:
-            f.estado_vivienda(*(row[c] for c in fields_estado))
+        f.activo = row["activo"]
+        f.datos_laborales(
+            row["jerarquia"] or "", row["lugar_presta_servicio"] or "",
+            row["tiempo_servicio"] or "", row["salario_mensual"] or ""
+        )
+        f.plan_vivienda(
+            row["terreno_propio"] or "", row["ubicacion_terreno"] or "",
+            row["condicion_vivienda"] or "", row["necesidad_vivienda"] or "",
+            row["organismo_publico"] or "", row["organismo_privado"] or "",
+            row["gestion_organismo_oficial"] or "", row["fecha_gestion"] or ""
+        )
+        f.estado_vivienda(
+            row["tenencia_tierra"] or "", row["ambiente_vivienda"] or "",
+            row["tiempo_ocupacion"] or "", row["servicio_vivienda_disponible"] or "",
+            row["materiales_vivienda"] or "", row["servicio_comunidad"] or ""
+        )
+        f.posee_vivienda = row["posee_vivienda"] or "" if "posee_vivienda" in row.keys() else ""
+        f.tenencia_tierra_otra = row["tenencia_tierra_otra"] or "" if "tenencia_tierra_otra" in row.keys() else ""
+        f.operadora = row["operadora"] or "" if "operadora" in row.keys() else ""
+        f.genero = row["genero"] or "" if "genero" in row.keys() else ""
+        keys = row.keys()
+        f.ingreso_trabajador = (row["ingreso_trabajador"] or "0") if "ingreso_trabajador" in keys else "0"
+        f.ingreso_familiar_adicional = (row["ingreso_familiar_adicional"] or "0") if "ingreso_familiar_adicional" in keys else "0"
+        f.total_ingreso_familiar = (row["total_ingreso_familiar"] or "0") if "total_ingreso_familiar" in keys else "0"
+        f.egreso_grupo_familiar = (row["egreso_grupo_familiar"] or "0") if "egreso_grupo_familiar" in keys else "0"
+        f.disponibilidad_economica = (row["disponibilidad_economica"] or "0") if "disponibilidad_economica" in keys else "0"
+        cursor.execute(
+            "SELECT rubro, monto, observacion FROM egresos_mensuales WHERE funcionario_cedula = ? ORDER BY id",
+            (f.cedula,),
+        )
+        f.egresos_mensuales = [
+            {"rubro": r["rubro"], "monto": r["monto"] or "0", "observacion": r["observacion"] or ""}
+            for r in cursor.fetchall()
+        ]
 
         cursor.execute("SELECT * FROM familiares WHERE funcionario_cedula = ?", (f.cedula,))
         for fam_row in cursor.fetchall():
@@ -214,19 +427,22 @@ def guardar_funcionarios(funcionarios):
     for f in funcionarios:
         cursor.execute("SELECT activo FROM funcionarios WHERE cedula = ?", (f.cedula,))
         existing = cursor.fetchone()
-        activo_val = existing["activo"] if existing else getattr(f, '_activo', 1)
+        activo_val = existing["activo"] if existing else getattr(f, "activo", 1)
         cursor.execute("""
             INSERT OR REPLACE INTO funcionarios (
-                cedula, nombre, apellido, fecha_nacimiento, edad, telefono, peso, altura,
+                cedula, nombre, apellido, fecha_nacimiento, edad, telefono, operadora, genero, peso, altura,
                 estado_civil, residencia, jerarquia, lugar_presta_servicio, tiempo_servicio,
                 salario_mensual, terreno_propio, ubicacion_terreno, condicion_vivienda,
                 necesidad_vivienda, organismo_publico, organismo_privado,
                 gestion_organismo_oficial, fecha_gestion, tenencia_tierra, ambiente_vivienda,
                 tiempo_ocupacion, servicio_vivienda_disponible, materiales_vivienda, servicio_comunidad,
+                posee_vivienda, tenencia_tierra_otra,
+                ingreso_trabajador, ingreso_familiar_adicional, total_ingreso_familiar,
+                egreso_grupo_familiar, disponibilidad_economica,
                 activo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, f.peso,
+            f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, getattr(f, "operadora", ""), getattr(f, "genero", ""), f.peso,
             f.altura, f.estado_civil, f.residencia,
             getattr(f, "jerarquia", None), getattr(f, "lugar_presta_servicio", None),
             getattr(f, "tiempo_servicio", None), getattr(f, "salario_mensual", None),
@@ -237,8 +453,18 @@ def guardar_funcionarios(funcionarios):
             getattr(f, "tenencia_tierra", None), getattr(f, "ambiente_vivienda", None),
             getattr(f, "tiempo_ocupacion", None), getattr(f, "servicio_vivienda_disponible", None),
             getattr(f, "materiales_vivienda", None), getattr(f, "servicio_comunidad", None),
+            getattr(f, "posee_vivienda", None), getattr(f, "tenencia_tierra_otra", None),
+            getattr(f, "ingreso_trabajador", "0") or "0",
+            getattr(f, "ingreso_familiar_adicional", "0") or "0",
+            getattr(f, "total_ingreso_familiar", "0") or "0",
+            getattr(f, "egreso_grupo_familiar", "0") or "0",
+            getattr(f, "disponibilidad_economica", "0") or "0",
             activo_val,
         ))
+
+        egresos = getattr(f, "egresos_mensuales", None)
+        if egresos is not None:
+            _guardar_egresos_cursor(cursor, f.cedula, egresos)
 
         cursor.execute("DELETE FROM familiares WHERE funcionario_cedula = ?", (f.cedula,))
         for fam in f.grupo_familiar:
@@ -348,6 +574,106 @@ def obtener_auditoria(limite=100):
     conn.close()
     return [{"id": r["id"], "usuario": r["usuario"], "accion": r["accion"],
              "detalle": r["detalle"], "fecha": r["fecha"]} for r in rows]
+
+
+
+# --- Catálogos y Operadoras ---
+
+def cargar_catalogo(tipo):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT valor, detalle FROM catalogos WHERE tipo = ? AND activo = 1 ORDER BY orden", (tipo,))
+    return [{"valor": r["valor"], "detalle": r["detalle"]} for r in cursor.fetchall()]
+
+def valores_catalogo(tipo):
+    return [r["valor"] for r in cargar_catalogo(tipo)]
+
+def detalle_de_lugar(valor):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT detalle FROM catalogos WHERE tipo = 'lugar_servicio' AND valor = ?", (valor,))
+    res = cursor.fetchone()
+    conn.close()
+    return res["detalle"] if res else valor
+
+def lugar_por_detalle(detalle):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT valor FROM catalogos WHERE tipo = 'lugar_servicio' AND detalle = ?", (detalle,))
+    res = cursor.fetchone()
+    conn.close()
+    return res["valor"] if res else detalle
+
+def agregar_catalogo(tipo, valor, detalle=""):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO catalogos (tipo, valor, detalle) VALUES (?, ?, ?)", (tipo, valor, detalle))
+    conn.commit()
+    conn.close()
+
+def eliminar_catalogo(tipo, valor):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM catalogos WHERE tipo = ? AND valor = ?", (tipo, valor))
+    conn.commit()
+    conn.close()
+
+
+# --- Normalizacion de cedula y telefono ---
+
+def solo_digitos(valor):
+    return "".join(c for c in str(valor or "") if c.isdigit())
+
+def normalizar_cedula(valor):
+    """Devuelve 'V-<hasta 8 digitos>' o '' si no hay digitos."""
+    digitos = solo_digitos(valor)[:8]
+    return f"V-{digitos}" if digitos else ""
+
+def dividir_telefono(valor):
+    """Separa (prefijo, abonado) de formatos 0412..., +58..., 412...
+    Devuelve ('', '') si no hay digitos."""
+    d = solo_digitos(valor)
+    if d.startswith("58") and len(d) >= 12:
+        d = d[2:]
+    if len(d) == 11 and d.startswith("0"):
+        d = d[1:]
+    if len(d) >= 10:
+        return d[:3], d[-7:]
+    return "", d
+
+def operadora_de_telefono(telefono):
+    tel = "".join(filter(str.isdigit, telefono))
+    if len(tel) >= 3:
+        if tel.startswith("58"): tel = tel[2:]
+        elif tel.startswith("0"): tel = tel[1:]
+        prefijo = tel[0:3]
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT operadora FROM operadora_prefijos WHERE prefijo = ?", (prefijo,))
+        res = cursor.fetchone()
+        conn.close()
+        return res["operadora"] if res else ""
+    return ""
+
+def cargar_operadoras():
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT prefijo, operadora FROM operadora_prefijos")
+    return [{"prefijo": r["prefijo"], "operadora": r["operadora"]} for r in cursor.fetchall()]
+
+def agregar_operadora(prefijo, operadora):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO operadora_prefijos (prefijo, operadora) VALUES (?, ?)", (prefijo, operadora))
+    conn.commit()
+    conn.close()
+
+def eliminar_operadora(prefijo):
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM operadora_prefijos WHERE prefijo = ?", (prefijo,))
+    conn.commit()
+    conn.close()
 
 
 ROLES = {
