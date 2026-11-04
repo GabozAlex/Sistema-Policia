@@ -110,6 +110,33 @@ def _crear_tablas():
         ('lugar_servicio', 'Estación Díaz', 'Urbanismo Carcanapiral, municipio Díaz', 6),
         ('lugar_servicio', 'Estación Tubores', 'C. Colón, Punta de Piedras', 7),
         ('lugar_servicio', 'Base Sabanamar', 'Porlamar (municipio Mariño)', 8);
+
+        INSERT OR IGNORE INTO catalogos (tipo, valor, detalle, orden) VALUES
+        ('parentesco', 'Jefe/a', '', 1),
+        ('parentesco', 'Cónyuge/pareja', '', 2),
+        ('parentesco', 'Hijo/a', '', 3),
+        ('parentesco', 'Nieto/a', '', 4),
+        ('parentesco', 'Padre/madre', '', 5),
+        ('parentesco', 'Hermano/a', '', 6),
+        ('parentesco', 'Otro pariente', '', 7),
+        ('parentesco', 'No pariente', '', 8),
+        ('nivel_educacion', 'Sin estudios', '', 1),
+        ('nivel_educacion', 'Básica', '', 2),
+        ('nivel_educacion', 'Media', '', 3),
+        ('nivel_educacion', 'Técnico superior', '', 4),
+        ('nivel_educacion', 'Universitario', '', 5),
+        ('nivel_educacion', 'Maestría/Doctorado', '', 6),
+        ('profesion', 'Medicina / Salud', '', 1),
+        ('profesion', 'Ingeniería', '', 2),
+        ('profesion', 'Derecho', '', 3),
+        ('profesion', 'Administración / Contaduría', '', 4),
+        ('profesion', 'Educación', '', 5),
+        ('profesion', 'Arquitectura / Urbanismo', '', 6),
+        ('profesion', 'Ciencias Básicas (Biología, Física, Química, etc.)', '', 7),
+        ('profesion', 'Humanidades / Letras / Artes', '', 8),
+        ('profesion', 'Ciencias Sociales (Sociología, Psicología, Trabajo Social, etc.)', '', 9),
+        ('profesion', 'Agronomía / Zootecnia', '', 10),
+        ('profesion', 'Otra', '', 11);
         
         INSERT OR IGNORE INTO operadora_prefijos (prefijo, operadora) VALUES
         ('412', 'Digitel'), ('422', 'Digitel'),

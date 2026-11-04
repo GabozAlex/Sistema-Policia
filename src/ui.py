@@ -1510,6 +1510,14 @@ class UI:
                activebackground=self.primary_hover, activeforeground="white", relief="flat", borderwidth=0,
                cursor="hand2", command=self.crear_nuevo_panel_familiar).pack(side=LEFT, padx=10, pady=8, ipady=5)
 
+    def _set_combo_familiar(self, combo, valor):
+        valor = (valor or "").strip()
+        if valor:
+            actuales = list(combo.cget("values"))
+            if valor not in actuales:
+                combo.configure(values=actuales + [valor])
+        combo.set(valor)
+
     def crear_nuevo_panel_familiar(self):
         self.empty_label.pack_forget()
         idx = len(self.familiares_panels)
@@ -1545,12 +1553,12 @@ class UI:
 
         inputs["nombre"] = make_campo(0, "Nombre:", 0)
         inputs["apellido"] = make_campo(0, "Apellido:", 2)
-        inputs["parentesco"] = make_campo(0, "Parentesco:", 4)
+        inputs["parentesco"] = make_combobox(0, "Parentesco:", 4, valores_catalogo("parentesco"))
         inputs["edad"] = make_campo(2, "Edad:", 0)
-        inputs["genero"] = make_campo(2, "Genero:", 2)
+        inputs["genero"] = make_combobox(2, "Genero:", 2, ["Masculino", "Femenino"])
         inputs["estado_civil"] = make_combobox(2, "Estado Civil:", 4, valores_catalogo("estado_civil"))
-        inputs["nivel_educacion"] = make_campo(4, "Nivel Educacion:", 0)
-        inputs["profesion"] = make_campo(4, "Profesion:", 2)
+        inputs["nivel_educacion"] = make_combobox(4, "Nivel Educacion:", 0, valores_catalogo("nivel_educacion"))
+        inputs["profesion"] = make_combobox(4, "Profesion:", 2, valores_catalogo("profesion"))
         inputs["lugar_trabajo"] = make_campo(4, "Lugar Trabajo:", 4)
         inputs["ingreso_mensual"] = make_campo(6, "Ingreso Mensual:", 0)
         inputs["observacion"] = make_campo(6, "Observacion:", 2, colspan=3)
@@ -1828,12 +1836,12 @@ class UI:
             panel, inputs = self.familiares_panels[-1]
             inputs["nombre"].delete(0, END); inputs["nombre"].insert(0, fam.nombre)
             inputs["apellido"].delete(0, END); inputs["apellido"].insert(0, fam.apellido)
-            inputs["parentesco"].delete(0, END); inputs["parentesco"].insert(0, fam.parentesco)
+            self._set_combo_familiar(inputs["parentesco"], fam.parentesco)
             inputs["edad"].delete(0, END); inputs["edad"].insert(0, fam.edad)
-            inputs["genero"].delete(0, END); inputs["genero"].insert(0, fam.genero)
-            inputs["estado_civil"].set(fam.estado_civil)
-            inputs["nivel_educacion"].delete(0, END); inputs["nivel_educacion"].insert(0, fam.nivel_educacion)
-            inputs["profesion"].delete(0, END); inputs["profesion"].insert(0, fam.profesion_oficio)
+            self._set_combo_familiar(inputs["genero"], fam.genero)
+            self._set_combo_familiar(inputs["estado_civil"], fam.estado_civil)
+            self._set_combo_familiar(inputs["nivel_educacion"], fam.nivel_educacion)
+            self._set_combo_familiar(inputs["profesion"], fam.profesion_oficio)
             inputs["lugar_trabajo"].delete(0, END); inputs["lugar_trabajo"].insert(0, fam.lugar_trabajo)
             inputs["ingreso_mensual"].delete(0, END); inputs["ingreso_mensual"].insert(0, fam.ingreso_mensual)
             inputs["observacion"].delete(0, END); inputs["observacion"].insert(0, fam.observacion)
@@ -1858,6 +1866,16 @@ class UI:
                 actual = (getattr(f, "lugar_presta_servicio", "") or "").strip().lower()
                 if actual and actual in (detalle.lower(), valor.lower()):
                     usados += 1
+            for fam in (getattr(f, "grupo_familiar", None) or []):
+                if tipo == "parentesco":
+                    if (fam.parentesco or "").strip().lower() == valor.lower():
+                        usados += 1
+                elif tipo == "nivel_educacion":
+                    if (fam.nivel_educacion or "").strip().lower() == valor.lower():
+                        usados += 1
+                elif tipo == "profesion":
+                    if (fam.profesion_oficio or "").strip().lower() == valor.lower():
+                        usados += 1
         return usados
 
     def _contar_uso_operadora(self, prefijo):
@@ -1873,8 +1891,8 @@ class UI:
     def abrir_catalogos(self):
         win = Toplevel(self.root)
         win.title("Gestión de Catálogos")
-        win.geometry("720x480")
-        win.minsize(620, 420)
+        win.geometry("820x500")
+        win.minsize(700, 440)
         win.configure(bg=self.bg_card)
         win.transient(self.root)
         win.grab_set()
@@ -2041,6 +2059,9 @@ class UI:
         crear_tab_catalogo("estado_civil", "Estado Civil")
         crear_tab_catalogo("jerarquia", "Jerarquía")
         crear_tab_catalogo("lugar_servicio", "Lugar de Servicio")
+        crear_tab_catalogo("parentesco", "Parentesco")
+        crear_tab_catalogo("nivel_educacion", "Nivel de Educación")
+        crear_tab_catalogo("profesion", "Profesión")
 
         tab_op = Frame(nb, bg=self.bg_card)
         nb.add(tab_op, text="Operadoras")
