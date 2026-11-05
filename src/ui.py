@@ -555,7 +555,7 @@ class UI:
             ("Jerarquia", getattr(func, "jerarquia", "") or ""),
             ("Lugar de Servicio", getattr(func, "lugar_presta_servicio", "") or ""),
             ("Tiempo de Servicio", getattr(func, "tiempo_servicio", "") or ""),
-            ("Salario Mensual", getattr(func, "salario_mensual", "") or ""),
+            ("Salario Mensual (Bs.)", getattr(func, "salario_mensual", "") or ""),
             ("Fecha de Gestion", getattr(func, "fecha_gestion", "") or ""),
         ]
         self._crear_field_grid(scroll_frame, laboral_fields)
@@ -634,7 +634,7 @@ class UI:
                     ("Nivel Educacion", fam.nivel_educacion or ""),
                     ("Profesion/Oficio", fam.profesion_oficio or ""),
                     ("Lugar de Trabajo", fam.lugar_trabajo or ""),
-                    ("Ingreso Mensual", fam.ingreso_mensual or ""),
+                        ("Ingreso Mensual (Bs.)", fam.ingreso_mensual or ""),
                     ("Observacion", fam.observacion or ""),
                 ])
 
@@ -751,7 +751,7 @@ class UI:
                 ("Jerarquia", func.jerarquia or ""),
                 ("Lugar Servicio", func.lugar_presta_servicio or ""),
                 ("Tiempo Servicio", func.tiempo_servicio or ""),
-                ("Salario Mensual", func.salario_mensual or ""),
+                ("Salario Mensual (Bs.)", func.salario_mensual or ""),
             ])
             write_section("Plan Vivienda", [
                 ("Terreno Propio", func.terreno_propio or ""),
@@ -782,7 +782,7 @@ class UI:
                         ("Nivel Educacion", fam.nivel_educacion or ""),
                         ("Profesion", fam.profesion_oficio or ""),
                         ("Lugar Trabajo", fam.lugar_trabajo or ""),
-                        ("Ingreso Mensual", fam.ingreso_mensual or ""),
+                    ("Ingreso Mensual (Bs.)", fam.ingreso_mensual or ""),
                         ("Observacion", fam.observacion or ""),
                     ])
             try:
@@ -810,7 +810,7 @@ class UI:
             lines.append(f"Jerarquia: {func.jerarquia or '-'}")
             lines.append(f"Lugar Servicio: {func.lugar_presta_servicio or '-'}")
             lines.append(f"Tiempo Servicio: {func.tiempo_servicio or '-'}")
-            lines.append(f"Salario Mensual: {func.salario_mensual or '-'}")
+            lines.append(f"Salario Mensual (Bs.): {func.salario_mensual or '-'}")
             lines.append(f"\nPLAN VIVIENDA")
             lines.append(f"Terreno Propio: {func.terreno_propio or '-'}")
             lines.append(f"Ubicacion Terreno: {func.ubicacion_terreno or '-'}")
@@ -839,7 +839,7 @@ class UI:
                     lines.append(f"  Nivel Educacion: {fam.nivel_educacion or '-'}")
                     lines.append(f"  Profesion: {fam.profesion_oficio or '-'}")
                     lines.append(f"  Lugar Trabajo: {fam.lugar_trabajo or '-'}")
-                    lines.append(f"  Ingreso Mensual: {fam.ingreso_mensual or '-'}")
+                    lines.append(f"  Ingreso Mensual (Bs.): {fam.ingreso_mensual or '-'}")
             try:
                 with open("ficha_funcionario.txt", "w", encoding="utf-8") as f:
                     f.write("\n".join(lines))
@@ -858,7 +858,7 @@ class UI:
             lines.append(f"Tel: {func.telefono}")
             lines.append(f"")
             lines.append(f"LABORALES: Jer:{func.jerarquia or '-'} Lugar:{func.lugar_presta_servicio or '-'}")
-            lines.append(f"Tiempo:{func.tiempo_servicio or '-'} Salario:{func.salario_mensual or '-'} FecGestion:{func.fecha_gestion or '-'}")
+            lines.append(f"Tiempo:{func.tiempo_servicio or '-'} Salario(Bs.):{func.salario_mensual or '-'} FecGestion:{func.fecha_gestion or '-'}")
             lines.append(f"")
             lines.append(f"VIVIENDA: Terreno:{func.terreno_propio or '-'} Ubi:{func.ubicacion_terreno or '-'}")
             lines.append(f"Condicion:{func.condicion_vivienda or '-'} Nec:{func.necesidad_vivienda or '-'}")
@@ -1192,6 +1192,31 @@ class UI:
             entry.insert(0, valor)
         return valor
 
+    def _validar_ingreso(self, propuesto):
+        return self._validar_decimal(propuesto, 10, 2)
+
+    def _normalizar_monto(self, valor):
+        v = (valor or "").strip().replace(",", ".")
+        return v[:-1] if v.endswith(".") else v
+
+    def _normalizar_monto_entry(self, entry):
+        valor = self._normalizar_monto(entry.get())
+        if valor != entry.get():
+            entry.delete(0, END)
+            entry.insert(0, valor)
+        return valor
+
+    def _normalizar_tiempo_servicio(self, valor):
+        v = (valor or "").strip()
+        if not v:
+            return ""
+        if v.isdigit():
+            n = int(v)
+            if 1 <= n <= 35:
+                return f"{n} año" if n == 1 else f"{n} años"
+            return ""
+        return v
+
     def _crear_tab_personales(self):
         p = self.tab_personales
 
@@ -1327,18 +1352,20 @@ class UI:
         self.input_jerarquia.grid(row=2, column=0, sticky=EW, padx=(0, 15), ipady=3)
 
         Label(p, text="Tiempo Servicio:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=1, sticky=W, pady=(6, 2))
-        self.input_tiempo_servicio = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
-                                           highlightbackground=self.border, highlightthickness=1)
+        opciones_tiempo = [f"{n} año" if n == 1 else f"{n} años" for n in range(1, 36)]
+        self.input_tiempo_servicio = ttk.Combobox(p, values=opciones_tiempo, font=(FONT, 11), state="readonly")
         self.input_tiempo_servicio.grid(row=2, column=1, sticky=EW, padx=(0, 15), ipady=3)
 
         Label(p, text="Lugar Servicio:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
         self.input_lugar_servicio = ttk.Combobox(p, values=valores_catalogo("lugar_servicio"), font=(FONT, 11), state="readonly")
         self.input_lugar_servicio.grid(row=2, column=2, sticky=EW, padx=(0, 15), ipady=3)
 
-        Label(p, text="Ingreso Mensual:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=3, sticky=W, pady=(6, 2))
+        Label(p, text="Ingreso Mensual (Bs.):", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=3, sticky=W, pady=(6, 2))
         self.input_ingreso_mensual = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
-                                           highlightbackground=self.border, highlightthickness=1)
+                                           highlightbackground=self.border, highlightthickness=1,
+                                           validate="key", validatecommand=(self.root.register(self._validar_ingreso), "%P"))
         self.input_ingreso_mensual.grid(row=2, column=3, sticky=EW, padx=(0, 15), ipady=3)
+        self.input_ingreso_mensual.bind("<FocusOut>", lambda e: self._normalizar_monto_entry(self.input_ingreso_mensual))
 
     def _crear_tab_plan_vivienda(self):
         p = self.tab_vivienda_plan
@@ -1789,7 +1816,9 @@ class UI:
         inputs["nivel_educacion"] = make_combobox(4, "Nivel Educacion:", 0, valores_catalogo("nivel_educacion"))
         inputs["profesion"] = make_combobox(4, "Profesion:", 2, valores_catalogo("profesion"))
         inputs["lugar_trabajo"] = make_campo(4, "Lugar Trabajo:", 4)
-        inputs["ingreso_mensual"] = make_campo(6, "Ingreso Mensual:", 0)
+        inputs["ingreso_mensual"] = make_campo(6, "Ingreso Mensual (Bs.):", 0)
+        inputs["ingreso_mensual"].config(validate="key", validatecommand=(self.root.register(self._validar_ingreso), "%P"))
+        inputs["ingreso_mensual"].bind("<FocusOut>", lambda e, w=inputs["ingreso_mensual"]: self._normalizar_monto_entry(w))
         inputs["observacion"] = make_campo(6, "Observacion:", 2, colspan=3)
 
         for i in range(8):
@@ -1858,7 +1887,7 @@ class UI:
 
         f.datos_laborales(
             self.input_jerarquia.get().strip(), detalle_de_lugar(self.input_lugar_servicio.get().strip()),
-            self.input_tiempo_servicio.get().strip(), self.input_ingreso_mensual.get().strip()
+            self.input_tiempo_servicio.get().strip(), self._normalizar_monto(self.input_ingreso_mensual.get())
         )
         f.plan_vivienda(
             self.posee_terreno.get(), "",
@@ -1911,7 +1940,7 @@ class UI:
                 inputs["parentesco"].get().strip(), inputs["edad"].get().strip(),
                 inputs["genero"].get().strip(), inputs["estado_civil"].get().strip(),
                 inputs["nivel_educacion"].get().strip(), inputs["profesion"].get().strip(),
-                inputs["lugar_trabajo"].get().strip(), inputs["ingreso_mensual"].get().strip(),
+                inputs["lugar_trabajo"].get().strip(), self._normalizar_monto(inputs["ingreso_mensual"].get()),
                 inputs["observacion"].get().strip()
             )
             f.agregar_familiar(fam)
@@ -1989,11 +2018,10 @@ class UI:
         self.input_residencia_pueblo.set(getattr(f, "residencia_pueblo", "") or "")
 
         self.input_jerarquia.set(getattr(f, "jerarquia", ""))
-        self.input_tiempo_servicio.delete(0, END)
-        self.input_tiempo_servicio.insert(0, getattr(f, "tiempo_servicio", ""))
+        self.input_tiempo_servicio.set(self._normalizar_tiempo_servicio(getattr(f, "tiempo_servicio", "")))
         self.input_lugar_servicio.set(lugar_por_detalle(getattr(f, "lugar_presta_servicio", "")))
         self.input_ingreso_mensual.delete(0, END)
-        self.input_ingreso_mensual.insert(0, getattr(f, "salario_mensual", ""))
+        self.input_ingreso_mensual.insert(0, self._normalizar_monto(getattr(f, "salario_mensual", "")))
 
         self.posee_terreno.set(getattr(f, "terreno_propio", "") or "NO")
         self.posee_vivienda.set(getattr(f, "posee_vivienda", "") or "NO")
@@ -2099,7 +2127,7 @@ class UI:
             self._set_combo_familiar(inputs["nivel_educacion"], fam.nivel_educacion)
             self._set_combo_familiar(inputs["profesion"], fam.profesion_oficio)
             inputs["lugar_trabajo"].delete(0, END); inputs["lugar_trabajo"].insert(0, fam.lugar_trabajo)
-            inputs["ingreso_mensual"].delete(0, END); inputs["ingreso_mensual"].insert(0, fam.ingreso_mensual)
+            inputs["ingreso_mensual"].delete(0, END); inputs["ingreso_mensual"].insert(0, self._normalizar_monto(fam.ingreso_mensual))
             inputs["observacion"].delete(0, END); inputs["observacion"].insert(0, fam.observacion)
 
     def cerrar_sesion(self):
