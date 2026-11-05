@@ -85,6 +85,22 @@ class UI:
         self.style.map("Warning.TButton", background=[("active", self.warning_hover)])
         self.style.configure("TEntry", fieldbackground=self.bg_card, foreground=self.text, borderwidth=1, relief="solid", bordercolor=self.border, lightcolor=self.border, darkcolor=self.border)
         self.style.map("TEntry", bordercolor=[("focus", self.accent)])
+        self.style.configure("TCombobox", fieldbackground=self.readonly_bg,
+                             background=self.readonly_bg, foreground=self.text,
+                             arrowcolor=self.primary, bordercolor=self.border,
+                             lightcolor=self.border, darkcolor=self.border, padding=4)
+        self.style.map("TCombobox",
+                       fieldbackground=[("readonly", self.readonly_bg), ("disabled", self.bg), ("focus", self.readonly_bg)],
+                       foreground=[("readonly", self.text), ("disabled", self.muted)],
+                       selectbackground=[("readonly", self.readonly_bg)],
+                       selectforeground=[("readonly", self.text)],
+                       background=[("active", self.readonly_bg), ("readonly", self.readonly_bg)],
+                       arrowcolor=[("active", self.accent), ("disabled", self.muted)],
+                       bordercolor=[("focus", self.accent)])
+        self.root.option_add("*TCombobox*Listbox.background", self.bg_card)
+        self.root.option_add("*TCombobox*Listbox.foreground", self.text)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", self.selected_bg)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", self.primary)
         self.style.configure("TNotebook", background=self.bg, borderwidth=0)
         self.style.configure("TNotebook.Tab", font=(FONT, 10, "bold"), padding=[11, 7], background=self.border, foreground=self.text_sec)
         self.style.map("TNotebook.Tab", background=[("selected", self.bg_card)], foreground=[("selected", self.primary)])
@@ -1246,7 +1262,8 @@ class UI:
         Label(p, text="Edad:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=2, sticky=W, pady=(6, 2))
         self.input_edad = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
                                 highlightbackground=self.border, highlightthickness=1,
-                                state="readonly", readonlybackground=self.bg_card)
+                                state="readonly", readonlybackground=self.readonly_bg,
+                                fg=self.text_sec, takefocus=0, cursor="arrow")
         self.input_edad.grid(row=4, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
         # Operadora (prefijo) y luego Telefono (7 digitos)
