@@ -1562,6 +1562,11 @@ class UI:
     def _crear_tab_estado_vivienda(self):
         p = self.tab_vivienda_estado
         self.tenencia_tierra = StringVar(value="Otra")
+        self._opciones_tenencia_tierra_otra = ["Alquilada", "Terreno Familiar"]
+        self._opciones_tiempo_ocupacion = [
+            "Menos de 1 año", "De 1 a 3 años", "De 3 a 5 años",
+            "De 5 a 10 años", "Más de 10 años",
+        ]
 
         canvas = Canvas(p, bg=self.bg_card, highlightthickness=0)
         scroll = ttk.Scrollbar(p, orient=VERTICAL, command=canvas.yview)
@@ -1594,6 +1599,14 @@ class UI:
             e.pack(side=LEFT, ipady=3, fill=X, expand=True)
             return e
 
+        def combobox_row(parent, label, valores):
+            r = Frame(parent, bg=self.bg_card)
+            r.pack(fill=X, pady=2)
+            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=22, anchor=W).pack(side=LEFT)
+            cb = ttk.Combobox(r, values=valores, font=(FONT, 11), state="readonly")
+            cb.pack(side=LEFT, ipady=3, fill=X, expand=True)
+            return cb
+
         def seccion(titulo):
             f = LabelFrame(sf, text=titulo, font=(FONT, 10, "bold"),
                            bg=self.bg_card, fg=self.text, relief="groove", borderwidth=1, padx=10, pady=8)
@@ -1615,10 +1628,12 @@ class UI:
 
         f = seccion("Tenencia de Tierra")
         radio_group(f, "Tipo:", self.tenencia_tierra, ["Propia", "Proceso Pago", "Cedida", "Invadida", "Otra"])
-        self._estado_entries["tenencia_tierra_otra"] = entry_row(f, "Especifique:")
+        self._estado_entries["tenencia_tierra_otra"] = combobox_row(
+            f, "Especifique:", self._opciones_tenencia_tierra_otra)
 
         f = seccion("Ocupacion")
-        self._estado_entries["tiempo_ocupacion"] = entry_row(f, "Tiempo Ocupacion:")
+        self._estado_entries["tiempo_ocupacion"] = combobox_row(
+            f, "Tiempo de Ocupación:", self._opciones_tiempo_ocupacion)
 
         f = seccion("Ambientes")
         self._estado_entries["num_sala"] = entry_row(f, "Sala:")
@@ -1683,6 +1698,21 @@ class UI:
         self.input_num_dormitorio = self._estado_entries["num_dormitorio"]
         self.input_otros = self._estado_entries["otros"]
         self.input_especificacion = self._estado_entries["especificacion"]
+
+        self.tenencia_tierra.trace_add("write", self._actualizar_tenencia_tierra)
+        self._actualizar_tenencia_tierra()
+
+    def _actualizar_tenencia_tierra(self, *_):
+        es_otra = (self.tenencia_tierra.get() or "").strip() == "Otra"
+        fila = self.input_tenencia_tierra_otra.master
+        if es_otra:
+            if not fila.winfo_ismapped():
+                fila.pack(fill=X, pady=2)
+            self.input_tenencia_tierra_otra.configure(state="readonly")
+        else:
+            fila.pack_forget()
+            self.input_tenencia_tierra_otra.set("")
+            self.input_tenencia_tierra_otra.configure(state="disabled")
 
     def _crear_tab_balance(self):
         p = self.tab_balance
@@ -2147,11 +2177,17 @@ class UI:
         self.input_fecha_gestion.delete(0, END); self.input_fecha_gestion.insert(0, f.fecha_gestion or "")
         self._actualizar_dependencias_plan_vivienda()
 
-        self.tenencia_tierra.set(getattr(f, "tenencia_tierra", "") or "Otra")
-        self.input_tenencia_tierra_otra.delete(0, END)
-        self.input_tenencia_tierra_otra.insert(0, getattr(f, "tenencia_tierra_otra", "") or "")
-        self._estado_entries["tiempo_ocupacion"].delete(0, END)
-        self._estado_entries["tiempo_ocupacion"].insert(0, getattr(f, "tiempo_ocupacion", "") or "")
+        tenencia = getattr(f, "tenencia_tierra", "") or "Otra"
+        self.tenencia_tierra.set(tenencia)
+        otro = (getattr(f, "tenencia_tierra_otra", "") or "").strip()
+        if tenencia != "Otra" or otro not in self._opciones_tenencia_tierra_otra:
+            otro = ""
+        self.input_tenencia_tierra_otra.set(otro)
+        tiempo = (getattr(f, "tiempo_ocupacion", "") or "").strip()
+        if tiempo not in self._opciones_tiempo_ocupacion:
+            tiempo = ""
+        self.input_tiempo_ocupacion.set(tiempo)
+        self._actualizar_tenencia_tierra()
 
         # Restaurar ambientes desde el string "Sala:2, Sala-Comedor:1, ..."
         amb_map = {
