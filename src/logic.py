@@ -49,6 +49,7 @@ def _crear_tablas():
             jerarquia TEXT, lugar_presta_servicio TEXT, tiempo_servicio TEXT, salario_mensual TEXT,
             terreno_propio TEXT, ubicacion_terreno TEXT, condicion_vivienda TEXT,
             necesidad_vivienda TEXT, organismo_publico TEXT, organismo_privado TEXT,
+            organismo_publico_otro TEXT, organismo_privado_otro TEXT,
             gestion_organismo_oficial TEXT, fecha_gestion TEXT,
             tenencia_tierra TEXT, ambiente_vivienda TEXT, tiempo_ocupacion TEXT,
             servicio_vivienda_disponible TEXT, materiales_vivienda TEXT, servicio_comunidad TEXT,
@@ -238,6 +239,8 @@ def _crear_tablas():
         "ALTER TABLE funcionarios ADD COLUMN residencia_pueblo TEXT",
         "ALTER TABLE funcionarios ADD COLUMN municipio TEXT",
         "ALTER TABLE funcionarios ADD COLUMN pueblo TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN organismo_publico_otro TEXT",
+        "ALTER TABLE funcionarios ADD COLUMN organismo_privado_otro TEXT",
         """CREATE TABLE IF NOT EXISTS egresos_mensuales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             funcionario_cedula TEXT REFERENCES funcionarios(cedula),
@@ -352,6 +355,8 @@ class Funcionario():
         self.necesidad_vivienda = ""
         self.organismo_publico = ""
         self.organismo_privado = ""
+        self.organismo_publico_otro = ""
+        self.organismo_privado_otro = ""
         self.gestion_organismo_oficial = ""
         self.fecha_gestion = ""
         self.posee_vivienda = ""
@@ -389,7 +394,7 @@ class Funcionario():
         self.tiempo_servicio = tiempo_servicio
         self.salario_mensual = salario_mensual
 
-    def plan_vivienda(self, terreno_propio, ubicacion_terreno, condicion_vivienda, municipio, pueblo, necesidad_vivienda, organismo_publico, organismo_privado, gestion_organismo_oficial, fecha_gestion):
+    def plan_vivienda(self, terreno_propio, ubicacion_terreno, condicion_vivienda, municipio, pueblo, necesidad_vivienda, organismo_publico, organismo_privado, gestion_organismo_oficial, fecha_gestion, organismo_publico_otro="", organismo_privado_otro=""):
         self.terreno_propio = terreno_propio
         self.ubicacion_terreno = ubicacion_terreno
         self.condicion_vivienda = condicion_vivienda
@@ -399,6 +404,8 @@ class Funcionario():
         self.gestion_organismo_oficial = gestion_organismo_oficial
         self.organismo_publico = organismo_publico
         self.organismo_privado = organismo_privado
+        self.organismo_publico_otro = organismo_publico_otro
+        self.organismo_privado_otro = organismo_privado_otro
         self.fecha_gestion = fecha_gestion
 
     def estado_vivienda(self, tenencia_tierra, ambiente_vivienda, tiempo_ocupacion, servicio_vivienda_disponible, materiales_vivienda, servicio_comunidad):
@@ -457,7 +464,9 @@ def cargar_funcionarios(incluir_inactivos=False):
             row["condicion_vivienda"] or "", row["municipio"] or "", row["pueblo"] or "",
             row["necesidad_vivienda"] or "", row["organismo_publico"] or "",
             row["organismo_privado"] or "", row["gestion_organismo_oficial"] or "",
-            row["fecha_gestion"] or ""
+            row["fecha_gestion"] or "",
+            (row["organismo_publico_otro"] or "") if "organismo_publico_otro" in row.keys() else "",
+            (row["organismo_privado_otro"] or "") if "organismo_privado_otro" in row.keys() else ""
         )
         f.estado_vivienda(
             row["tenencia_tierra"] or "", row["ambiente_vivienda"] or "",
@@ -518,13 +527,14 @@ def guardar_funcionarios(funcionarios):
                 jerarquia, lugar_presta_servicio, tiempo_servicio,
                 salario_mensual, terreno_propio, ubicacion_terreno, condicion_vivienda, municipio, pueblo,
                 necesidad_vivienda, organismo_publico, organismo_privado,
+                organismo_publico_otro, organismo_privado_otro,
                 gestion_organismo_oficial, fecha_gestion, tenencia_tierra, ambiente_vivienda,
                 tiempo_ocupacion, servicio_vivienda_disponible, materiales_vivienda, servicio_comunidad,
                 posee_vivienda, tenencia_tierra_otra,
                 ingreso_trabajador, ingreso_familiar_adicional, total_ingreso_familiar,
                 egreso_grupo_familiar, disponibilidad_economica,
                 activo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             f.cedula, f.nombre, f.apellido, f.fecha_nacimiento, f.edad, f.telefono, getattr(f, "operadora", ""), getattr(f, "genero", ""), f.peso,
             f.altura, f.estado_civil, f.residencia,
@@ -535,6 +545,7 @@ def guardar_funcionarios(funcionarios):
             getattr(f, "condicion_vivienda", None), getattr(f, "municipio", None), getattr(f, "pueblo", None),
             getattr(f, "necesidad_vivienda", None),
             getattr(f, "organismo_publico", None), getattr(f, "organismo_privado", None),
+            getattr(f, "organismo_publico_otro", None), getattr(f, "organismo_privado_otro", None),
             getattr(f, "gestion_organismo_oficial", None), getattr(f, "fecha_gestion", None),
             getattr(f, "tenencia_tierra", None), getattr(f, "ambiente_vivienda", None),
             getattr(f, "tiempo_ocupacion", None), getattr(f, "servicio_vivienda_disponible", None),

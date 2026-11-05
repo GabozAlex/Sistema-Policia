@@ -571,7 +571,9 @@ class UI:
             ("Necesidad Habitacional", getattr(func, "necesidad_vivienda", "") or ""),
             ("Posee Vivienda", getattr(func, "posee_vivienda", "") or ""),
             ("Organismo Publico", getattr(func, "organismo_publico", "") or ""),
+            ("Especifique Organismo Publico", getattr(func, "organismo_publico_otro", "") or ""),
             ("Organismo Privado", getattr(func, "organismo_privado", "") or ""),
+            ("Especifique Organismo Privado", getattr(func, "organismo_privado_otro", "") or ""),
             ("Gestion Organismo Oficial", getattr(func, "gestion_organismo_oficial", "") or ""),
             ("Fecha de Gestion", getattr(func, "fecha_gestion", "") or ""),
         ]
@@ -759,7 +761,9 @@ class UI:
                 ("Condicion Vivienda", func.condicion_vivienda or ""),
                 ("Necesidad Vivienda", func.necesidad_vivienda or ""),
                 ("Organismo Publico", func.organismo_publico or ""),
+                ("Especifique Organismo Publico", getattr(func, "organismo_publico_otro", "") or ""),
                 ("Organismo Privado", func.organismo_privado or ""),
+                ("Especifique Organismo Privado", getattr(func, "organismo_privado_otro", "") or ""),
                 ("Gestion Organismo", func.gestion_organismo_oficial or ""),
                 ("Fecha Gestion", func.fecha_gestion or ""),
             ])
@@ -817,7 +821,9 @@ class UI:
             lines.append(f"Condicion: {func.condicion_vivienda or '-'}")
             lines.append(f"Necesidad Vivienda: {func.necesidad_vivienda or '-'}")
             lines.append(f"Organismo Publico: {func.organismo_publico or '-'}")
+            lines.append(f"Especifique Organismo Publico: {getattr(func, 'organismo_publico_otro', '') or '-'}")
             lines.append(f"Organismo Privado: {func.organismo_privado or '-'}")
+            lines.append(f"Especifique Organismo Privado: {getattr(func, 'organismo_privado_otro', '') or '-'}")
             lines.append(f"Gestion Organismo: {func.gestion_organismo_oficial or '-'}")
             lines.append(f"Fecha Gestion: {func.fecha_gestion or '-'}")
             lines.append(f"\nESTADO VIVIENDA")
@@ -862,7 +868,8 @@ class UI:
             lines.append(f"")
             lines.append(f"VIVIENDA: Terreno:{func.terreno_propio or '-'} Ubi:{func.ubicacion_terreno or '-'}")
             lines.append(f"Condicion:{func.condicion_vivienda or '-'} Nec:{func.necesidad_vivienda or '-'}")
-            lines.append(f"OrgPub:{func.organismo_publico or '-'} OrgPriv:{func.organismo_privado or '-'}")
+            lines.append(f"OrgPub:{func.organismo_publico or '-'} Esp:{getattr(func, 'organismo_publico_otro', '') or '-'}")
+            lines.append(f"OrgPriv:{func.organismo_privado or '-'} Esp:{getattr(func, 'organismo_privado_otro', '') or '-'}")
             lines.append(f"Gestion:{func.gestion_organismo_oficial or '-'} FecGestion:{func.fecha_gestion or '-'}")
             lines.append(f"Tenencia:{func.tenencia_tierra or '-'} TiempoOcup:{func.tiempo_ocupacion or '-'}")
             lines.append(f"Servicios:{func.servicio_vivienda_disponible or '-'}")
@@ -1386,8 +1393,10 @@ class UI:
         self.posee_vivienda = StringVar(value="NO")
         self.necesidad_habiacion = StringVar(value="Vivienda")
         self.gestion_organismo = StringVar(value="NO")
-        self.organismo_publico = StringVar(value="Otra")
-        self.organismo_privado = StringVar(value="Otra")
+        self.organismo_publico = StringVar(value="")
+        self.organismo_privado = StringVar(value="")
+        self._opciones_organismo_publico = ["Gobernacion", "INAVI", "Malariologia", "Otra"]
+        self._opciones_organismo_privado = ["Entidad Bancaria", "Empresa Promotora", "Otra"]
 
         canvas = Canvas(p, bg=self.bg_card, highlightthickness=0)
         scroll = ttk.Scrollbar(p, orient=VERTICAL, command=canvas.yview)
@@ -1417,6 +1426,15 @@ class UI:
             cb = ttk.Combobox(r, values=valores, font=(FONT, 11), state="readonly" if es_readonly else NORMAL)
             cb.pack(side=LEFT, ipady=3, fill=X, expand=True)
             return cb
+
+        def entry_row(parent, label):
+            r = Frame(parent, bg=self.bg_card)
+            r.pack(fill=X, pady=3)
+            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
+            e = Entry(r, font=(FONT, 11), relief="solid", borderwidth=1,
+                      highlightbackground=self.border, highlightthickness=1)
+            e.pack(side=LEFT, ipady=3, fill=X, expand=True)
+            return r, e
 
         def seccion(parent, titulo):
             f = LabelFrame(parent, text=titulo, font=(FONT, 10, "bold"),
@@ -1458,10 +1476,14 @@ class UI:
         radio_group(f, "Gestion:", self.gestion_organismo, ["SI", "NO"])
         self._radios_organismo_publico = radio_group(
             f, "Organismo Publico:", self.organismo_publico,
-            ["Gobernacion", "INAVI", "Malariologia", "Otra"])
+            self._opciones_organismo_publico)
+        self._fila_organismo_publico_otro, self.input_organismo_publico_otro = entry_row(f, "Especifique:")
+        self._fila_organismo_publico_otro.pack_forget()
         self._radios_organismo_privado = radio_group(
             f, "Organismo Privado:", self.organismo_privado,
-            ["Entidad Bancaria", "Empresa Promotora", "Otra"])
+            self._opciones_organismo_privado)
+        self._fila_organismo_privado_otro, self.input_organismo_privado_otro = entry_row(f, "Especifique:")
+        self._fila_organismo_privado_otro.pack_forget()
 
         f = seccion(sf, "Fecha")
         r = Frame(f, bg=self.bg_card)
@@ -1474,6 +1496,8 @@ class UI:
 
         for var in (self.posee_terreno, self.posee_vivienda, self.gestion_organismo):
             var.trace_add("write", self._actualizar_dependencias_plan_vivienda)
+        self.organismo_publico.trace_add("write", self._actualizar_especificaciones_organismos)
+        self.organismo_privado.trace_add("write", self._actualizar_especificaciones_organismos)
         self._actualizar_dependencias_plan_vivienda()
 
     def _actualizar_dependencias_plan_vivienda(self, *_):
@@ -1485,11 +1509,55 @@ class UI:
         self.input_pueblo.configure(state="readonly" if terreno else "disabled")
         self.input_condicion_vivienda.configure(state="readonly" if vivienda else "disabled")
 
+        if not terreno:
+            self.input_municipio.set("")
+            self._filtrar_pueblos()
+        if not vivienda:
+            self.input_condicion_vivienda.set("")
+
         radios = (getattr(self, "_radios_organismo_publico", []) +
                   getattr(self, "_radios_organismo_privado", []))
         for rb in radios:
             rb.configure(state="normal" if gestion else "disabled")
+        if not gestion:
+            self.organismo_publico.set("")
+            self.organismo_privado.set("")
+            self._limpiar_entry(self.input_organismo_publico_otro)
+            self._limpiar_entry(self.input_organismo_privado_otro)
+            self.input_fecha_gestion.delete(0, END)
         self.input_fecha_gestion.set_enabled(gestion)
+        self._actualizar_especificaciones_organismos()
+
+    def _limpiar_entry(self, entrada):
+        self._set_entry_text(entrada, "")
+
+    def _set_entry_text(self, entrada, valor):
+        estado = str(entrada.cget("state"))
+        entrada.configure(state="normal")
+        entrada.delete(0, END)
+        entrada.insert(0, valor or "")
+        entrada.configure(state=estado)
+
+    def _actualizar_especificaciones_organismos(self, *_):
+        gestion = (self.gestion_organismo.get() or "").strip().upper() == "SI"
+        publico = (self.organismo_publico.get() or "").strip() == "Otra"
+        privado = (self.organismo_privado.get() or "").strip() == "Otra"
+
+        def _toggle(fila, entrada, visible, after=None):
+            if visible and gestion:
+                entrada.configure(state="normal")
+                if not fila.winfo_ismapped():
+                    if after is not None:
+                        fila.pack(fill=X, pady=3, after=after)
+                    else:
+                        fila.pack(fill=X, pady=3)
+            else:
+                fila.pack_forget()
+                entrada.configure(state="disabled")
+
+        after_publico = self._radios_organismo_publico[0].master if self._radios_organismo_publico else None
+        _toggle(self._fila_organismo_publico_otro, self.input_organismo_publico_otro, publico, after_publico)
+        _toggle(self._fila_organismo_privado_otro, self.input_organismo_privado_otro, privado)
 
     def _crear_tab_estado_vivienda(self):
         p = self.tab_vivienda_estado
@@ -1934,7 +2002,9 @@ class UI:
             self.input_municipio.get().strip(), self.input_pueblo.get().strip(),
             self.necesidad_habiacion.get(),
             self.organismo_publico.get(), self.organismo_privado.get(),
-            self.gestion_organismo.get(), self.input_fecha_gestion.get().strip()
+            self.gestion_organismo.get(), self.input_fecha_gestion.get().strip(),
+            self.input_organismo_publico_otro.get().strip() if self.organismo_publico.get() == "Otra" else "",
+            self.input_organismo_privado_otro.get().strip() if self.organismo_privado.get() == "Otra" else ""
         )
 
         ambiente = (f"Sala:{self.input_num_sala.get()}, Sala-Comedor:{self.input_num_sala_comedor.get()}, "
@@ -2066,8 +2136,10 @@ class UI:
         self.posee_vivienda.set(getattr(f, "posee_vivienda", "") or "NO")
         self.necesidad_habiacion.set(getattr(f, "necesidad_vivienda", "") or "Vivienda")
         self.gestion_organismo.set(getattr(f, "gestion_organismo_oficial", "") or "NO")
-        self.organismo_publico.set(getattr(f, "organismo_publico", "") or "Otra")
-        self.organismo_privado.set(getattr(f, "organismo_privado", "") or "Otra")
+        self.organismo_publico.set(getattr(f, "organismo_publico", "") or "")
+        self.organismo_privado.set(getattr(f, "organismo_privado", "") or "")
+        self._set_entry_text(self.input_organismo_publico_otro, getattr(f, "organismo_publico_otro", "") or "")
+        self._set_entry_text(self.input_organismo_privado_otro, getattr(f, "organismo_privado_otro", "") or "")
         self.input_municipio.set(f.municipio or "")
         self._filtrar_pueblos()
         self.input_pueblo.set(f.pueblo or "")
