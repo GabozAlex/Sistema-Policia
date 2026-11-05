@@ -993,10 +993,12 @@ class UI:
     def _crear_date_picker(self, parent, on_change=None):
         frame = Frame(parent, bg=self.bg_card)
         var = StringVar(master=frame)
+        habilitado = {"valor": True}
 
         entry = Entry(frame, textvariable=var, font=(FONT, 11), relief="solid", borderwidth=1,
                       highlightbackground=self.border, highlightthickness=1,
-                      state="readonly", readonlybackground=self.bg_card)
+                      state="readonly", readonlybackground=self.bg_card,
+                      disabledbackground=self.readonly_bg, disabledforeground=self.text_sec)
         entry.pack(side=LEFT, fill=X, expand=True, ipady=3)
 
         boton = Button(frame, text="...", font=(FONT, 10, "bold"), bg=self.accent, fg=self.primary,
@@ -1030,6 +1032,8 @@ class UI:
                 on_change()
 
         def abrir():
+            if not habilitado["valor"]:
+                return
             hoy = date.today()
             base = var.get()
             sel = hoy
@@ -1139,12 +1143,20 @@ class UI:
 
         boton.config(command=abrir)
 
+        def set_enabled(valor):
+            habilitado["valor"] = bool(valor)
+            entry.configure(state="readonly" if valor else "disabled")
+            boton.configure(state="normal" if valor else "disabled")
+
         frame.get = get_val
         frame.set = set_val
         frame.delete = lambda *a: var.set("")
         frame.insert = lambda idx, val: set_val(val)
         frame.config = lambda **kw: None
         frame.abrir = abrir
+        frame.set_enabled = set_enabled
+        frame.entry = entry
+        frame.boton = boton
 
         return frame
 
@@ -1416,10 +1428,14 @@ class UI:
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=3)
             Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
+            botones = []
             for val in options:
-                Radiobutton(r, text=val, variable=var, value=val, font=(FONT, 9),
-                            bg=self.bg_card, fg=self.text, activebackground=self.bg_card,
-                            activeforeground=self.primary, selectcolor=self.bg_card).pack(side=LEFT, padx=3)
+                rb = Radiobutton(r, text=val, variable=var, value=val, font=(FONT, 9),
+                                 bg=self.bg_card, fg=self.text, activebackground=self.bg_card,
+                                 activeforeground=self.primary, selectcolor=self.bg_card)
+                rb.pack(side=LEFT, padx=3)
+                botones.append(rb)
+            return botones
 
         sf = scroll_frame
 
@@ -1440,8 +1456,12 @@ class UI:
 
         f = seccion(sf, "Gestion Organismo Oficial")
         radio_group(f, "Gestion:", self.gestion_organismo, ["SI", "NO"])
-        radio_group(f, "Organismo Publico:", self.organismo_publico, ["Gobernacion", "INAVI", "Malariologia", "Otra"])
-        radio_group(f, "Organismo Privado:", self.organismo_privado, ["Entidad Bancaria", "Empresa Promotora", "Otra"])
+        self._radios_organismo_publico = radio_group(
+            f, "Organismo Publico:", self.organismo_publico,
+            ["Gobernacion", "INAVI", "Malariologia", "Otra"])
+        self._radios_organismo_privado = radio_group(
+            f, "Organismo Privado:", self.organismo_privado,
+            ["Entidad Bancaria", "Empresa Promotora", "Otra"])
 
         f = seccion(sf, "Fecha")
         r = Frame(f, bg=self.bg_card)
@@ -1451,6 +1471,25 @@ class UI:
         self._plan_entries["fecha_gestion"].pack(side=LEFT, ipady=3, fill=X, expand=True)
 
         self.input_fecha_gestion = self._plan_entries["fecha_gestion"]
+
+        for var in (self.posee_terreno, self.posee_vivienda, self.gestion_organismo):
+            var.trace_add("write", self._actualizar_dependencias_plan_vivienda)
+        self._actualizar_dependencias_plan_vivienda()
+
+    def _actualizar_dependencias_plan_vivienda(self, *_):
+        terreno = (self.posee_terreno.get() or "").strip().upper() == "SI"
+        vivienda = (self.posee_vivienda.get() or "").strip().upper() == "SI"
+        gestion = (self.gestion_organismo.get() or "").strip().upper() == "SI"
+
+        self.input_municipio.configure(state="readonly" if terreno else "disabled")
+        self.input_pueblo.configure(state="readonly" if terreno else "disabled")
+        self.input_condicion_vivienda.configure(state="readonly" if vivienda else "disabled")
+
+        radios = (getattr(self, "_radios_organismo_publico", []) +
+                  getattr(self, "_radios_organismo_privado", []))
+        for rb in radios:
+            rb.configure(state="normal" if gestion else "disabled")
+        self.input_fecha_gestion.set_enabled(gestion)
 
     def _crear_tab_estado_vivienda(self):
         p = self.tab_vivienda_estado
@@ -2034,6 +2073,7 @@ class UI:
         self.input_pueblo.set(f.pueblo or "")
         self.input_condicion_vivienda.set(f.condicion_vivienda or "")
         self.input_fecha_gestion.delete(0, END); self.input_fecha_gestion.insert(0, f.fecha_gestion or "")
+        self._actualizar_dependencias_plan_vivienda()
 
         self.tenencia_tierra.set(getattr(f, "tenencia_tierra", "") or "Otra")
         self.input_tenencia_tierra_otra.delete(0, END)
