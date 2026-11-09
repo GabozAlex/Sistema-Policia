@@ -35,6 +35,9 @@ def main():
             app = ui_mod.UI(root)
             root.update()
             assert app._logo_login_photo is not None
+            assert app._logo_sidebar_photo is not None
+            assert app._logo_sidebar_photo.width() <= 64
+            assert app._logo_sidebar_photo.height() <= 64
             assert app._login_bg_original is not None
             assert app._login_bg_label is not None
             app._renderizar_fondo_login(400, 300)

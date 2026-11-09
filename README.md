@@ -49,7 +49,8 @@ Desde la ficha de cada funcionario:
 - Eliminación lógica: los datos nunca se pierden, solo se ocultan.
 
 ### Otras Características
-- Edad auto-calculada a partir de la fecha de nacimiento.
+- Edad auto-calculada a partir de la fecha de nacimiento, con edad mínima de 17 años para funcionarios.
+- Edad familiar opcional, validada entre 1 y 200 años cuando se completa.
 - Selectores de fecha con combo de día/mes/año.
 - Checkboxes y radios para datos estructurados.
 - Modo de prueba con base de datos separada (`DB_MODE=test`).
@@ -109,13 +110,13 @@ Sistema-Policia/
 
 ## Recursos gráficos
 
-El inicio de sesión usa estos archivos si existen:
+El sistema usa estos archivos si existen:
 
-- `src/assets/images/logo.png` o `logo_login.png`: logo de la institución. Se muestra sobre la tarjeta blanca y se usa como icono de la ventana.
+- `src/assets/images/logo.png` o `logo_login.png`: logo de la institución. Se muestra en el inicio de sesión y en la barra lateral tras iniciar sesión; también se usa como icono de la ventana.
 - `src/assets/images/login_bg.png`, `.jpg` o `.jpeg`: foto de fondo. Se recorta para cubrir la ventana y se le aplica una capa oscura para mantener la legibilidad.
 - `src/assets/icons/app.ico`: icono del ejecutable de Windows. Es opcional.
 
-Si los archivos no existen, el login conserva el escudo y el fondo azul oscuro actuales. Los recursos se incluyen en el ejecutable mediante `build.bat`.
+Si los archivos no existen, el login y la barra lateral conservan el escudo, y el login mantiene el fondo azul oscuro. Los recursos se incluyen en el ejecutable mediante `build.bat`.
 
 ## Usuarios Preconfigurados
 

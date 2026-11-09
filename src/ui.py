@@ -45,6 +45,7 @@ def _ruta_recurso(*partes):
 
 
 FONT = "Segoe UI"
+EDAD_MINIMA_FUNCIONARIO = 17
 
 class UI:
     def __init__(self, root):
@@ -140,12 +141,14 @@ class UI:
         self.editando_cedula = None
         self.familiares_panels = []
         self._logo_login_photo = None
+        self._logo_sidebar_photo = None
         self._login_bg_original = None
         self._login_bg_photo = None
         self._login_bg_label = None
         self._login_bg_after = None
 
         self._logo_login_photo = self._cargar_logo_login()
+        self._logo_sidebar_photo = self._cargar_logo(64, solo_con_pillow=True)
         if self._logo_login_photo is not None:
             try:
                 self.root.iconphoto(True, self._logo_login_photo)
@@ -158,7 +161,9 @@ class UI:
         for widget in self.panel_principal.winfo_children():
             widget.destroy()
 
-    def _cargar_logo_login(self):
+    def _cargar_logo(self, tamano, solo_con_pillow=False):
+        if solo_con_pillow and (Image is None or ImageTk is None):
+            return None
         for nombre in ("logo_login.png", "logo.png"):
             ruta = _ruta_recurso("images", nombre)
             if not os.path.exists(ruta):
@@ -168,12 +173,15 @@ class UI:
                     resampling = getattr(Image, "Resampling", Image)
                     with Image.open(ruta) as original:
                         img = original.convert("RGBA")
-                    img.thumbnail((128, 128), resampling.LANCZOS)
+                    img.thumbnail((tamano, tamano), resampling.LANCZOS)
                     return ImageTk.PhotoImage(img)
                 return PhotoImage(file=ruta, master=self.root)
             except Exception:
                 continue
         return None
+
+    def _cargar_logo_login(self):
+        return self._cargar_logo(128)
 
     def _configurar_fondo_login(self, container):
         self._login_bg_original = None
@@ -255,7 +263,7 @@ class UI:
             Label(card, text="\U0001f6e1", font=(FONT, 36),
                   bg=self.bg_card, fg=self.accent).pack(pady=(30, 5))
         Label(card, text="Bienestar y Proteccion Social", font=(FONT, 18, "bold"),
-              bg=self.bg_card, fg=self.primary).pack(pady=(0, 5))
+              bg=self.bg_card, fg=self.primary, padx=20).pack(pady=(0, 5))
         Label(card, text="Sistema de Gestion Policial", font=(FONT, 11),
               bg=self.bg_card, fg=self.text_sec).pack(pady=(0, 28))
 
@@ -313,11 +321,15 @@ class UI:
         panel.pack(side=LEFT, fill=Y)
         panel.pack_propagate(False)
 
-        # Header with icon
+        # Header con logo institucional (o escudo como respaldo)
         header = Frame(panel, bg=self.sidebar_bg)
         header.pack(fill=X, pady=(22, 0))
-        Label(header, text="\U0001f6e1", font=(FONT, 20),
-              bg=self.sidebar_bg, fg=self.accent).pack()
+        if self._logo_sidebar_photo is not None:
+            Label(header, image=self._logo_sidebar_photo, bg=self.sidebar_bg,
+                  bd=0, highlightthickness=0).pack()
+        else:
+            Label(header, text="\U0001f6e1", font=(FONT, 20),
+                  bg=self.sidebar_bg, fg=self.accent).pack()
         Label(header, text="Bienestar Social", font=(FONT, 13, "bold"),
               bg=self.sidebar_bg, fg="white").pack(pady=(2, 12))
 
@@ -409,25 +421,35 @@ class UI:
 
         subtitulo("Secciones del Programa")
         parrafo("Inicio: Pantalla principal que lista todos los funcionarios registrados. "
-                "Permite buscar, filtrar inactivos, y acceder a las acciones de cada registro (Ver, Editar, Desactivar, Restaurar).")
-        parrafo("Nuevo Funcionario: Formulario de varios pasos (pestanas) para registrar un nuevo funcionario. "
-                "Incluye datos personales, laborales, plan de vivienda, estado de la vivienda y grupo familiar.")
-        parrafo("Ver Datos: Muestra la ficha completa de un funcionario con toda su informacion en detalle. "
-                "Desde ahi se puede imprimir, exportar a PDF, guardar TXT, editar o desactivar.")
+                "Permite buscar, filtrar inactivos y acceder a las acciones de cada registro (Ver, Editar, Desactivar, Restaurar).")
+        parrafo("Nuevo Funcionario: Formulario con 6 pestañas: Personales, Laborales, Plan Vivienda, "
+                "Estado Vivienda, Familiares y Balance. Antes de guardar se validan los campos obligatorios; "
+                "si falta o es inválido algún dato, se muestra un solo aviso con la lista completa.")
+        parrafo("Ver Datos: Muestra la ficha completa de un funcionario con toda su información en detalle. "
+                "Desde ahí se puede imprimir, exportar a PDF, guardar TXT, editar o desactivar.")
+        parrafo("Catálogos (Admin/SubAdmin): Permite agregar o eliminar valores de estado civil, jerarquía, "
+                "lugar de servicio, parentesco, nivel educativo, profesión, condición de vivienda, municipios y pueblos.")
         parrafo("Gestionar Usuarios (Admin): Panel para administrar las cuentas de usuario del sistema. "
                 "Permite agregar y eliminar usuarios.")
-        parrafo("Ver Auditoria (Admin/SubAdmin): Registro cronologico de todas las acciones realizadas en el sistema "
-                "(creaciones, modificaciones, eliminaciones) con fecha, usuario y detalle.")
+        parrafo("Ver Auditoría (Admin/SubAdmin): Registro cronológico de todas las acciones realizadas en el sistema "
+                "(creaciones, modificaciones, desactivaciones) con fecha, usuario y detalle.")
+
+        subtitulo("Validaciones y Edad")
+        parrafo("Edad del funcionario: se calcula automáticamente desde la fecha de nacimiento. "
+                "El sistema no permite guardar registros con edad menor de 17 años.")
+        parrafo("Edad familiar: es opcional. Si se completa, debe ser un número entero entre 1 y 200 años.")
+        parrafo("La fecha de nacimiento es obligatoria y no puede ser futura.")
 
         subtitulo("Roles de Usuario")
         parrafo("Cada usuario tiene un rol que determina lo que puede hacer dentro del sistema:")
 
         roles_info = [
-            ("Visor (viewer)", "Solo puede ver la informacion. No puede crear, modificar ni eliminar registros."),
+            ("Visor (viewer)", "Solo puede ver la información. No puede crear, modificar ni eliminar registros."),
             ("Editor (editor)", "Puede ver y crear nuevos funcionarios. No puede modificar ni eliminar."),
             ("Modificador (modifier)", "Puede ver, crear y modificar funcionarios. No puede eliminar."),
-            ("SubAdmin (subadmin)", "Puede ver, crear, modificar, eliminar (desactivar) y restaurar funcionarios. "
-             "Tambien puede ver el registro de auditoria. No gestiona usuarios."),
+            ("SubAdmin (subadmin)", "Puede ver, crear, modificar, desactivar y restaurar funcionarios. "
+             "También puede ver la auditoría y gestionar catálogos. No gestiona usuarios."),
+            ("Admin (admin)", "Acceso total. Además de las funciones de SubAdmin, puede gestionar usuarios."),
         ]
         for rol, desc in roles_info:
             Label(scroll_frame, text=f"  \u2022 {rol}", font=(FONT, 10, "bold"),
@@ -435,31 +457,23 @@ class UI:
             parrafo(f"    {desc}")
 
         subtitulo("Usuarios del Sistema")
-        parrafo("A continuacion se listan los usuarios preconfigurados. "
-                "Contacte al administrador si necesita una cuenta con diferentes permisos.")
-
-        user_info = [
-            ("visor / visor123", "Rol: Visor — Solo lectura"),
-            ("editor / editor123", "Rol: Editor — Ver y crear"),
-            ("modificador / mod123", "Rol: Modificador — Ver, crear y modificar"),
-            ("subadmin / sub123", "Rol: SubAdmin — Acceso completo sin gestion de usuarios"),
-        ]
-        for cred, desc in user_info:
-            Label(scroll_frame, text=f"  \u2022 {cred}", font=(FONT, 10, "bold"),
-                  bg=self.bg_card, fg=self.text).pack(anchor=W, padx=xpad, pady=(4, 1))
-            parrafo(f"    {desc}")
+        parrafo("Las cuentas iniciales se crean en el primer inicio del programa. "
+                "Por seguridad, las contraseñas no se muestran en esta ayuda; "
+                "solicite sus credenciales al administrador del sistema.")
 
         subtitulo("Funcionalidades Adicionales")
         parrafo("Imprimir / Exportar: Desde la ficha de un funcionario puede imprimir directamente, "
                 "exportar a PDF o guardar un archivo de texto con los datos.")
         parrafo("Filtro de Inactivos: Marque 'Ver inactivos' en la pantalla principal para mostrar "
                 "los funcionarios desactivados y poder restaurarlos.")
+        parrafo("Recursos visuales: el logo institucional se muestra en el inicio de sesión y en la barra lateral. "
+                "Si existe una foto de fondo para el login, se aplica automáticamente.")
         parrafo("Modo Prueba: Ejecute el programa con la variable DB_MODE=test para usar una base "
                 "de datos separada de prueba sin afectar los datos reales.")
 
         subtitulo("Seguridad")
-        parrafo("Todas las acciones quedan registradas en el modulo de Auditoria. "
-                "Las eliminaciones son logicas (desactivacion), los datos nunca se pierden.")
+        parrafo("Todas las acciones quedan registradas en el módulo de Auditoría. "
+                "Las eliminaciones son lógicas (desactivación), por lo que los datos no se pierden.")
 
         Label(scroll_frame, text="", bg=self.bg_card).pack(pady=20)
 
@@ -1088,22 +1102,23 @@ class UI:
         Button(footer, text="Guardar Funcionario", font=(FONT, 10, "bold"), bg=self.success, fg="white",
                relief="flat", borderwidth=0, cursor="hand2", command=self.guardar_funcionario).pack(side=RIGHT, padx=5, ipady=5)
 
-    def _calcular_edad(self, event=None):
+    def _edad_desde_fecha_nacimiento(self, valor):
         try:
-            val = self.input_fecha_nacimiento.get()
-            if not val or "/" not in val:
-                return
-            d, m, a = val.split("/")
-            from datetime import date
-            hoy = date.today()
+            d, m, a = str(valor or "").strip().split("/")
             nac = date(int(a), int(m), int(d))
-            edad = hoy.year - nac.year - ((hoy.month, hoy.day) < (nac.month, nac.day))
-            self.input_edad.config(state=NORMAL)
-            self.input_edad.delete(0, END)
-            self.input_edad.insert(0, str(edad))
-            self.input_edad.config(state="readonly")
-        except:
-            pass
+            hoy = date.today()
+            return hoy.year - nac.year - ((hoy.month, hoy.day) < (nac.month, nac.day))
+        except Exception:
+            return None
+
+    def _calcular_edad(self, event=None):
+        edad = self._edad_desde_fecha_nacimiento(self.input_fecha_nacimiento.get())
+        if edad is None:
+            return
+        self.input_edad.config(state=NORMAL)
+        self.input_edad.delete(0, END)
+        self.input_edad.insert(0, str(edad))
+        self.input_edad.config(state="readonly")
 
     def _crear_date_picker(self, parent, on_change=None):
         frame = Frame(parent, bg=self.bg_card)
@@ -1385,7 +1400,14 @@ class UI:
 
         requerir(texto(self.input_nombre), "Datos personales: Nombre")
         requerir(texto(self.input_apellido), "Datos personales: Apellido")
-        requerir(texto(self.input_fecha_nacimiento), "Datos personales: Fecha de nacimiento")
+        fecha_nacimiento = texto(self.input_fecha_nacimiento)
+        requerir(fecha_nacimiento, "Datos personales: Fecha de nacimiento")
+        if fecha_nacimiento:
+            edad = self._edad_desde_fecha_nacimiento(fecha_nacimiento)
+            if edad is None:
+                faltantes.append("Datos personales: Fecha de nacimiento invalida")
+            elif edad < EDAD_MINIMA_FUNCIONARIO:
+                faltantes.append(f"Datos personales: Edad minima ({EDAD_MINIMA_FUNCIONARIO} años)")
         requerir(self.input_genero.get(), "Datos personales: Genero")
         requerir(self.input_estado_civil.get(), "Datos personales: Estado civil")
         requerir(solo_digitos(texto(self.input_telefono)), "Datos personales: Telefono")
@@ -2250,8 +2272,8 @@ class UI:
         faltantes = self._faltantes_obligatorios()
         if faltantes:
             messagebox.showwarning(
-                "Datos incompletos",
-                "Complete los siguientes campos obligatorios:\n\n" + "\n".join(f"- {x}" for x in faltantes),
+                "Datos incompletos o invalidos",
+                "Complete o corrija los siguientes datos:\n\n" + "\n".join(f"- {x}" for x in faltantes),
                 parent=self.root,
             )
             return

@@ -1,6 +1,7 @@
 import os
 import sys
 import sqlite3
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -74,6 +75,15 @@ def llenar_requeridos(app):
         set_entry(app, attr, "0")
 
 
+def fecha_para_edad(edad):
+    hoy = date.today()
+    try:
+        nacimiento = hoy.replace(year=hoy.year - edad)
+    except ValueError:
+        nacimiento = date(hoy.year - edad, 3, 1)
+    return nacimiento.strftime("%d/%m/%Y")
+
+
 def agregar_familiar(app, nombre, apellido, edad):
     app.crear_nuevo_panel_familiar()
     inputs = app.familiares_panels[-1][1]
@@ -123,6 +133,23 @@ def main():
             root.update()
             assert app._faltantes_obligatorios() == [], app._faltantes_obligatorios()
             print("formulario requerido OK")
+
+            etiqueta_edad_minima = "Datos personales: Edad minima (17 años)"
+            app.input_fecha_nacimiento.set(fecha_para_edad(16), True)
+            falt = app._faltantes_obligatorios()
+            assert etiqueta_edad_minima in falt, falt
+            avisos["warn"].clear()
+            app.guardar_funcionario()
+            assert avisos["warn"], avisos
+            assert etiqueta_edad_minima in avisos["warn"][-1][1], avisos
+            assert not [f for f in logic.cargar_funcionarios(incluir_inactivos=True)
+                        if f.cedula == CEDULA_NORM]
+            app.input_fecha_nacimiento.set(fecha_para_edad(17), True)
+            assert etiqueta_edad_minima not in app._faltantes_obligatorios()
+            app.input_fecha_nacimiento.set(fecha_para_edad(25), True)
+            assert etiqueta_edad_minima not in app._faltantes_obligatorios()
+            app.input_fecha_nacimiento.set("10/10/1985", True)
+            print("edad minima funcionario OK")
 
             inputs["edad"].insert(0, "201")
             assert inputs["edad"].get() == ""
