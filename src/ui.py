@@ -1214,6 +1214,15 @@ class UI:
     def _validar_ingreso(self, propuesto):
         return self._validar_decimal(propuesto, 10, 2)
 
+    def _validar_entero_0_10(self, propuesto):
+        return propuesto == "" or (propuesto.isdigit() and 0 <= int(propuesto) <= 10)
+
+    def _valor_ambiente(self, valor):
+        valor = (valor or "").strip()
+        if valor.isdigit() and 0 <= int(valor) <= 10:
+            return str(int(valor))
+        return ""
+
     def _normalizar_monto(self, valor):
         v = (valor or "").strip().replace(",", ".")
         return v[:-1] if v.endswith(".") else v
@@ -1590,12 +1599,14 @@ class UI:
 
         self._estado_entries = {}
 
-        def entry_row(parent, label):
+        def entry_row(parent, label, numerico=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=2)
             Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=22, anchor=W).pack(side=LEFT)
             e = Entry(r, font=(FONT, 11), relief="solid", borderwidth=1,
                       highlightbackground=self.border, highlightthickness=1)
+            if numerico:
+                e.configure(validate="key", validatecommand=(self.root.register(self._validar_entero_0_10), "%P"))
             e.pack(side=LEFT, ipady=3, fill=X, expand=True)
             return e
 
@@ -1636,14 +1647,19 @@ class UI:
             f, "Tiempo de Ocupación:", self._opciones_tiempo_ocupacion)
 
         f = seccion("Ambientes")
-        self._estado_entries["num_sala"] = entry_row(f, "Sala:")
-        self._estado_entries["num_sala_comedor"] = entry_row(f, "Sala-Comedor:")
-        self._estado_entries["num_cocina"] = entry_row(f, "Cocina:")
-        self._estado_entries["num_cocina_comedor"] = entry_row(f, "Cocina-Comedor:")
-        self._estado_entries["num_bano"] = entry_row(f, "Bano:")
-        self._estado_entries["num_dormitorio"] = entry_row(f, "Dormitorios:")
-        self._estado_entries["otros"] = entry_row(f, "Otros:")
-        self._estado_entries["especificacion"] = entry_row(f, "Especifique:")
+        Label(f, text="Solo números enteros del 0 al 10", font=(FONT, 9),
+              bg=self.bg_card, fg=self.text_sec, anchor=W).pack(fill=X, pady=(0, 4))
+        self._estado_entries["num_sala"] = entry_row(f, "Sala:", numerico=True)
+        self._estado_entries["num_sala_comedor"] = entry_row(f, "Sala-Comedor:", numerico=True)
+        self._estado_entries["num_cocina"] = entry_row(f, "Cocina:", numerico=True)
+        self._estado_entries["num_cocina_comedor"] = entry_row(f, "Cocina-Comedor:", numerico=True)
+        self._estado_entries["num_bano"] = entry_row(f, "Baño:", numerico=True)
+        self._estado_entries["num_dormitorio"] = entry_row(f, "Dormitorios:", numerico=True)
+        self._estado_entries["num_lavadero"] = entry_row(f, "Lavadero:", numerico=True)
+        self._estado_entries["num_patio_terraza"] = entry_row(f, "Patio / Terraza:", numerico=True)
+        self._estado_entries["num_frente_porche"] = entry_row(f, "Frente / Porche:", numerico=True)
+        self._estado_entries["num_garaje_estacionamiento"] = entry_row(f, "Garaje / Estacionamiento:", numerico=True)
+        self._estado_entries["num_deposito_almacen"] = entry_row(f, "Depósito / Almacén:", numerico=True)
 
         self._serv_vars = {}
         f = seccion("Servicios de la Vivienda")
@@ -1696,8 +1712,11 @@ class UI:
         self.input_num_cocina_comedor = self._estado_entries["num_cocina_comedor"]
         self.input_num_bano = self._estado_entries["num_bano"]
         self.input_num_dormitorio = self._estado_entries["num_dormitorio"]
-        self.input_otros = self._estado_entries["otros"]
-        self.input_especificacion = self._estado_entries["especificacion"]
+        self.input_num_lavadero = self._estado_entries["num_lavadero"]
+        self.input_num_patio_terraza = self._estado_entries["num_patio_terraza"]
+        self.input_num_frente_porche = self._estado_entries["num_frente_porche"]
+        self.input_num_garaje_estacionamiento = self._estado_entries["num_garaje_estacionamiento"]
+        self.input_num_deposito_almacen = self._estado_entries["num_deposito_almacen"]
 
         self.tenencia_tierra.trace_add("write", self._actualizar_tenencia_tierra)
         self._actualizar_tenencia_tierra()
@@ -2040,7 +2059,10 @@ class UI:
         ambiente = (f"Sala:{self.input_num_sala.get()}, Sala-Comedor:{self.input_num_sala_comedor.get()}, "
                     f"Cocina:{self.input_num_cocina.get()}, Cocina-Comedor:{self.input_num_cocina_comedor.get()}, "
                     f"Bano:{self.input_num_bano.get()}, Dormitorios:{self.input_num_dormitorio.get()}, "
-                    f"Otros:{self.input_otros.get()}, Especifique:{self.input_especificacion.get()}")
+                    f"Lavadero:{self.input_num_lavadero.get()}, Patio / Terraza:{self.input_num_patio_terraza.get()}, "
+                    f"Frente / Porche:{self.input_num_frente_porche.get()}, "
+                    f"Garaje / Estacionamiento:{self.input_num_garaje_estacionamiento.get()}, "
+                    f"Depósito / Almacén:{self.input_num_deposito_almacen.get()}")
 
         servicios = (f"Agua:{self._serv_vars['serv_agua'].get()}, Cloaca:{self._serv_vars['serv_cloaca'].get()}, "
                      f"Alumbrado:{self._serv_vars['serv_alumbrado'].get()}, Aseo:{self._serv_vars['serv_aseo'].get()}, "
@@ -2194,7 +2216,10 @@ class UI:
             "Sala": "input_num_sala", "Sala-Comedor": "input_num_sala_comedor",
             "Cocina": "input_num_cocina", "Cocina-Comedor": "input_num_cocina_comedor",
             "Bano": "input_num_bano", "Dormitorios": "input_num_dormitorio",
-            "Otros": "input_otros", "Especifique": "input_especificacion",
+            "Lavadero": "input_num_lavadero", "Patio / Terraza": "input_num_patio_terraza",
+            "Frente / Porche": "input_num_frente_porche",
+            "Garaje / Estacionamiento": "input_num_garaje_estacionamiento",
+            "Depósito / Almacén": "input_num_deposito_almacen",
         }
         raw_amb = getattr(f, "ambiente_vivienda", "") or ""
         for part in raw_amb.split(", "):
@@ -2205,7 +2230,9 @@ class UI:
             if attr:
                 w = getattr(self, attr)
                 w.delete(0, END)
-                w.insert(0, val.strip())
+                normalizado = self._valor_ambiente(val)
+                if normalizado:
+                    w.insert(0, normalizado)
 
         if getattr(f, "servicio_vivienda_disponible", ""):
             for part in f.servicio_vivienda_disponible.split(", "):
