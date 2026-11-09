@@ -1245,6 +1245,116 @@ class UI:
             return ""
         return v
 
+    def _validar_edad_familiar(self, propuesto):
+        if propuesto == "":
+            return True
+        return (
+            propuesto.isascii()
+            and propuesto.isdigit()
+            and len(propuesto) <= 3
+            and 1 <= int(propuesto) <= 200
+        )
+
+    def _edad_familiar_valida(self, valor):
+        valor = str(valor or "").strip()
+        return valor == "" or self._validar_edad_familiar(valor)
+
+    def _normalizar_edad_familiar(self, valor):
+        valor = str(valor or "").strip()
+        if not valor or not self._edad_familiar_valida(valor):
+            return ""
+        return str(int(valor))
+
+    def _faltantes_obligatorios(self):
+        faltantes = []
+
+        def requerir(valor, etiqueta):
+            if not str(valor or "").strip():
+                faltantes.append(etiqueta)
+
+        def texto(entrada):
+            return (entrada.get() or "").strip()
+
+        requerir(texto(self.input_nombre), "Datos personales: Nombre")
+        requerir(texto(self.input_apellido), "Datos personales: Apellido")
+        requerir(texto(self.input_fecha_nacimiento), "Datos personales: Fecha de nacimiento")
+        requerir(self.input_genero.get(), "Datos personales: Genero")
+        requerir(self.input_estado_civil.get(), "Datos personales: Estado civil")
+        requerir(solo_digitos(texto(self.input_telefono)), "Datos personales: Telefono")
+        requerir(self.input_operadora.get(), "Datos personales: Operadora")
+        requerir(self.input_residencia_municipio.get(), "Datos personales: Municipio de residencia")
+        requerir(texto(self.input_residencia), "Datos personales: Direccion de residencia")
+
+        requerir(self.input_jerarquia.get(), "Datos laborales: Jerarquia")
+        requerir(self.input_lugar_servicio.get(), "Datos laborales: Lugar de servicio")
+        requerir(self.input_tiempo_servicio.get(), "Datos laborales: Tiempo de servicio")
+        salario = self._normalizar_monto(texto(self.input_ingreso_mensual))
+        if not salario:
+            faltantes.append("Datos laborales: Ingreso mensual")
+        elif not self._validar_decimal(salario, 10, 2):
+            faltantes.append("Datos laborales: Ingreso mensual (numero valido)")
+
+        terreno = (self.posee_terreno.get() or "").strip()
+        vivienda = (self.posee_vivienda.get() or "").strip()
+        gestion = (self.gestion_organismo.get() or "").strip()
+        requerir(terreno, "Plan Vivienda: Terreno propio")
+        requerir(vivienda, "Plan Vivienda: Posee vivienda")
+        requerir(self.necesidad_habiacion.get(), "Plan Vivienda: Necesidad habitacional")
+        requerir(gestion, "Plan Vivienda: Gestion de organismo")
+        if terreno == "SI":
+            requerir(self.input_municipio.get(), "Plan Vivienda: Municipio del terreno")
+            if self.input_pueblo.cget("values"):
+                requerir(self.input_pueblo.get(), "Plan Vivienda: Pueblo del terreno")
+        if vivienda == "SI":
+            requerir(self.input_condicion_vivienda.get(), "Plan Vivienda: Condicion de la vivienda")
+        if gestion == "SI":
+            publico = (self.organismo_publico.get() or "").strip()
+            privado = (self.organismo_privado.get() or "").strip()
+            if not publico and not privado:
+                faltantes.append("Plan Vivienda: Organismo publico o privado")
+            if publico == "Otra" and not texto(self.input_organismo_publico_otro):
+                faltantes.append("Plan Vivienda: Especifique organismo publico")
+            if privado == "Otra" and not texto(self.input_organismo_privado_otro):
+                faltantes.append("Plan Vivienda: Especifique organismo privado")
+            requerir(texto(self.input_fecha_gestion), "Plan Vivienda: Fecha de gestion")
+
+        tenencia = (self.tenencia_tierra.get() or "").strip()
+        requerir(tenencia, "Estado Vivienda: Tenencia de tierra")
+        if tenencia == "Otra" and not texto(self.input_tenencia_tierra_otra):
+            faltantes.append("Estado Vivienda: Especifique tenencia de tierra")
+        requerir(texto(self.input_tiempo_ocupacion), "Estado Vivienda: Tiempo de ocupacion")
+        for clave, etiqueta in (
+            ("num_sala", "Sala"),
+            ("num_sala_comedor", "Sala-Comedor"),
+            ("num_cocina", "Cocina"),
+            ("num_cocina_comedor", "Cocina-Comedor"),
+            ("num_bano", "Bano"),
+            ("num_dormitorio", "Dormitorios"),
+        ):
+            requerir(texto(self._estado_entries[clave]), f"Estado Vivienda: Ambientes - {etiqueta}")
+        if (self._serv_vars["serv_otro"].get() or "").strip() == "SI":
+            requerir(texto(self._estado_entries["serv_especifico"]), "Estado Vivienda: Especifique servicio otros")
+
+        def monto_requerido(entrada, etiqueta):
+            valor = self._normalizar_monto(entrada.get())
+            if not valor:
+                faltantes.append(etiqueta)
+            elif not self._validar_decimal(valor, 10, 2):
+                faltantes.append(f"{etiqueta} (numero valido)")
+
+        monto_requerido(self._bal_entries["ingreso_trabajador"], "Balance: Ingreso del trabajador")
+        monto_requerido(self._bal_entries["ingreso_familiar_adicional"], "Balance: Ingreso familiar adicional")
+
+        for idx, (_, inputs) in enumerate(self.familiares_panels, start=1):
+            requerir(texto(inputs["nombre"]), f"Familiar #{idx}: Nombre")
+            requerir(texto(inputs["apellido"]), f"Familiar #{idx}: Apellido")
+            requerir(inputs["parentesco"].get(), f"Familiar #{idx}: Parentesco")
+            edad = texto(inputs["edad"])
+            if edad and not self._edad_familiar_valida(edad):
+                faltantes.append(f"Familiar #{idx}: Edad (1 a 200)")
+
+        return faltantes
+
     def _crear_tab_personales(self):
         p = self.tab_personales
 
@@ -1967,6 +2077,7 @@ class UI:
         inputs["apellido"].config(validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         inputs["parentesco"] = make_combobox(0, "Parentesco:", 4, valores_catalogo("parentesco"))
         inputs["edad"] = make_campo(2, "Edad:", 0)
+        inputs["edad"].config(validate="key", validatecommand=(self.root.register(self._validar_edad_familiar), "%P"))
         inputs["genero"] = make_combobox(2, "Genero:", 2, ["Masculino", "Femenino"])
         inputs["estado_civil"] = make_combobox(2, "Estado Civil:", 4, valores_catalogo("estado_civil"))
         inputs["nivel_educacion"] = make_combobox(4, "Nivel Educacion:", 0, valores_catalogo("nivel_educacion"))
@@ -2023,6 +2134,19 @@ class UI:
                 if normalizar_cedula(ex.cedula) == cedula:
                     messagebox.showwarning("Error", f"La cedula {cedula} ya existe en el sistema", parent=self.root)
                     return
+
+        self._normalizar_monto_entry(self.input_ingreso_mensual)
+        self._normalizar_monto_entry(self._bal_entries["ingreso_trabajador"])
+        self._normalizar_monto_entry(self._bal_entries["ingreso_familiar_adicional"])
+
+        faltantes = self._faltantes_obligatorios()
+        if faltantes:
+            messagebox.showwarning(
+                "Datos incompletos",
+                "Complete los siguientes campos obligatorios:\n\n" + "\n".join(f"- {x}" for x in faltantes),
+                parent=self.root,
+            )
+            return
 
         peso = self.input_peso.get().strip().replace(",", ".")
         altura = self.input_altura.get().strip().replace(",", ".")
@@ -2098,7 +2222,7 @@ class UI:
         for panel, inputs in self.familiares_panels:
             fam = Familiar(
                 inputs["nombre"].get().strip(), inputs["apellido"].get().strip(),
-                inputs["parentesco"].get().strip(), inputs["edad"].get().strip(),
+                inputs["parentesco"].get().strip(), self._normalizar_edad_familiar(inputs["edad"].get()),
                 inputs["genero"].get().strip(), inputs["estado_civil"].get().strip(),
                 inputs["nivel_educacion"].get().strip(), inputs["profesion"].get().strip(),
                 inputs["lugar_trabajo"].get().strip(), self._normalizar_monto(inputs["ingreso_mensual"].get()),
@@ -2290,13 +2414,20 @@ class UI:
                 if self._bal_tree.exists(rubro):
                     self._bal_tree.item(rubro, values=(rubro, e.get("monto", "0"), e.get("observacion", "")))
 
-        for fam in f.grupo_familiar:
+        edades_invalidas = []
+        for idx, fam in enumerate(f.grupo_familiar, start=1):
             self.crear_nuevo_panel_familiar()
             panel, inputs = self.familiares_panels[-1]
             inputs["nombre"].delete(0, END); inputs["nombre"].insert(0, fam.nombre)
             inputs["apellido"].delete(0, END); inputs["apellido"].insert(0, fam.apellido)
             self._set_combo_familiar(inputs["parentesco"], fam.parentesco)
-            inputs["edad"].delete(0, END); inputs["edad"].insert(0, fam.edad)
+            edad = str(fam.edad or "").strip()
+            if edad and not self._edad_familiar_valida(edad):
+                edades_invalidas.append(str(idx))
+                edad = ""
+            else:
+                edad = self._normalizar_edad_familiar(edad)
+            inputs["edad"].delete(0, END); inputs["edad"].insert(0, edad)
             self._set_combo_familiar(inputs["genero"], fam.genero)
             self._set_combo_familiar(inputs["estado_civil"], fam.estado_civil)
             self._set_combo_familiar(inputs["nivel_educacion"], fam.nivel_educacion)
@@ -2304,6 +2435,15 @@ class UI:
             inputs["lugar_trabajo"].delete(0, END); inputs["lugar_trabajo"].insert(0, fam.lugar_trabajo)
             inputs["ingreso_mensual"].delete(0, END); inputs["ingreso_mensual"].insert(0, self._normalizar_monto(fam.ingreso_mensual))
             inputs["observacion"].delete(0, END); inputs["observacion"].insert(0, fam.observacion)
+
+        if edades_invalidas:
+            messagebox.showwarning(
+                "Edad familiar invalida",
+                "Se dejaron vacias las edades invalidas de los familiares: "
+                + ", ".join(edades_invalidas)
+                + ". Corrijalas si corresponde.",
+                parent=self.root,
+            )
 
     def cerrar_sesion(self):
         self.usuario_actual = None
