@@ -61,6 +61,7 @@ Desde la ficha de cada funcionario:
 - **Tkinter** (ttk, tema "clam")
 - **SQLite 3** (base de datos embebida)
 - **fpdf2** (generación de PDF)
+- **Pillow** (logo, fondos e imágenes)
 
 ## Instalación
 
@@ -70,7 +71,7 @@ git clone <url-del-repositorio>
 cd Sistema-Policia
 
 # Instalar dependencias
-pip install fpdf2
+pip install fpdf2 Pillow
 
 # Ejecutar
 python3 src/ui.py
@@ -89,14 +90,32 @@ DB_MODE=test python3 src/ui.py
 ```
 Sistema-Policia/
 ├── src/
-│   ├── ui.py              # Interfaz gráfica (Tkinter)
-│   ├── logic.py           # Lógica de negocio, DB, modelos, roles
+│   ├── ui.py                    # Interfaz gráfica (Tkinter)
+│   ├── logic.py                 # Lógica de negocio, DB, modelos, roles
+│   ├── assets/
+│   │   ├── images/              # Logo, fondo de login, imágenes
+│   │   └── icons/               # Iconos de interfaz y app.ico
 │   └── data/
-│       ├── funcionarios.db           # Base de datos producción
-│       └── funcionarios_prueba.db    # Base de datos prueba
-├── USUARIOS.txt            # Credenciales de usuarios preconfigurados
+│       ├── funcionarios.db      # Base de datos producción
+│       └── funcionarios_prueba.db # Base de datos prueba
+├── scripts/                     # Utilidades de mantenimiento
+├── tests/                       # Pruebas de regresión
+├── docs/capturas/               # Capturas de referencia
+├── build.bat                    # Generación del ejecutable
+├── installer.iss                # Instalador de Windows
+├── USUARIOS.txt                 # Credenciales de usuarios preconfigurados
 └── README.md
 ```
+
+## Recursos gráficos
+
+El inicio de sesión usa estos archivos si existen:
+
+- `src/assets/images/logo.png` o `logo_login.png`: logo de la institución. Se muestra sobre la tarjeta blanca y se usa como icono de la ventana.
+- `src/assets/images/login_bg.png`, `.jpg` o `.jpeg`: foto de fondo. Se recorta para cubrir la ventana y se le aplica una capa oscura para mantener la legibilidad.
+- `src/assets/icons/app.ico`: icono del ejecutable de Windows. Es opcional.
+
+Si los archivos no existen, el login conserva el escudo y el fondo azul oscuro actuales. Los recursos se incluyen en el ejecutable mediante `build.bat`.
 
 ## Usuarios Preconfigurados
 
