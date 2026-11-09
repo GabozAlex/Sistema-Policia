@@ -1,9 +1,18 @@
 import calendar
+import os
+import sys
 from datetime import date
 
 from tkinter import *
 from tkinter import ttk, messagebox, simpledialog
 import tkinter.font as tkfont
+
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    Image = None
+    ImageTk = None
+
 from logic import (Funcionario, Familiar, cargar_funcionarios, guardar_funcionarios,
                    verificar_login, eliminar_funcionario, restaurar_funcionario,
                    crear_usuario, eliminar_usuario, obtener_usuarios,
@@ -25,6 +34,14 @@ def _detectar_fuente():
         if nombre in disponibles:
             return nombre
     return "TkDefaultFont"
+
+
+def _ruta_recurso(*partes):
+    if getattr(sys, "frozen", False):
+        base = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "assets")
+    else:
+        base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+    return os.path.join(base, *partes)
 
 
 FONT = "Segoe UI"
@@ -122,12 +139,99 @@ class UI:
         self.usuario_rol = None
         self.editando_cedula = None
         self.familiares_panels = []
+        self._logo_login_photo = None
+        self._login_bg_original = None
+        self._login_bg_photo = None
+        self._login_bg_label = None
+        self._login_bg_after = None
+
+        self._logo_login_photo = self._cargar_logo_login()
+        if self._logo_login_photo is not None:
+            try:
+                self.root.iconphoto(True, self._logo_login_photo)
+            except Exception:
+                pass
 
         self.inicio_sesion()
 
     def limpiar_panel_principal(self):
         for widget in self.panel_principal.winfo_children():
             widget.destroy()
+
+    def _cargar_logo_login(self):
+        for nombre in ("logo_login.png", "logo.png"):
+            ruta = _ruta_recurso("images", nombre)
+            if not os.path.exists(ruta):
+                continue
+            try:
+                if Image is not None:
+                    resampling = getattr(Image, "Resampling", Image)
+                    with Image.open(ruta) as original:
+                        img = original.convert("RGBA")
+                    img.thumbnail((128, 128), resampling.LANCZOS)
+                    return ImageTk.PhotoImage(img)
+                return PhotoImage(file=ruta, master=self.root)
+            except Exception:
+                continue
+        return None
+
+    def _configurar_fondo_login(self, container):
+        self._login_bg_original = None
+        self._login_bg_photo = None
+        self._login_bg_label = None
+        if Image is None:
+            return
+        for nombre in ("login_bg.png", "login_bg.jpg", "login_bg.jpeg"):
+            ruta = _ruta_recurso("images", nombre)
+            if not os.path.exists(ruta):
+                continue
+            try:
+                with Image.open(ruta) as original:
+                    self._login_bg_original = original.convert("RGBA")
+            except Exception:
+                self._login_bg_original = None
+            break
+        if self._login_bg_original is None:
+            return
+        self._login_bg_label = Label(container, bd=0, highlightthickness=0, bg=self.sidebar_bg)
+        self._login_bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        container.bind("<Configure>", self._actualizar_fondo_login)
+
+    def _actualizar_fondo_login(self, event=None):
+        if self._login_bg_original is None or self._login_bg_label is None:
+            return
+        ancho = event.width if event is not None else self._login_bg_label.winfo_width()
+        alto = event.height if event is not None else self._login_bg_label.winfo_height()
+        if ancho < 2 or alto < 2:
+            return
+        if self._login_bg_after is not None:
+            try:
+                self.root.after_cancel(self._login_bg_after)
+            except Exception:
+                pass
+        self._login_bg_after = self.root.after(
+            60, lambda: self._renderizar_fondo_login(ancho, alto)
+        )
+
+    def _renderizar_fondo_login(self, ancho, alto):
+        self._login_bg_after = None
+        if Image is None or ImageTk is None or self._login_bg_original is None or self._login_bg_label is None:
+            return
+        try:
+            resampling = getattr(Image, "Resampling", Image)
+            original = self._login_bg_original
+            escala = max(ancho / original.width, alto / original.height)
+            nuevo = (max(1, int(original.width * escala)), max(1, int(original.height * escala)))
+            img = original.resize(nuevo, resampling.LANCZOS)
+            izquierda = max(0, (img.width - ancho) // 2)
+            superior = max(0, (img.height - alto) // 2)
+            img = img.crop((izquierda, superior, izquierda + ancho, superior + alto))
+            overlay = Image.new("RGBA", (ancho, alto), (5, 15, 30, 145))
+            img = Image.alpha_composite(img, overlay)
+            self._login_bg_photo = ImageTk.PhotoImage(img)
+            self._login_bg_label.configure(image=self._login_bg_photo)
+        except Exception:
+            pass
 
     def inicio_sesion(self):
         self.limpiar_panel_principal()
@@ -138,14 +242,18 @@ class UI:
 
         container = Frame(self.panel_principal, bg=self.sidebar_bg)
         container.pack(fill=BOTH, expand=True)
+        self._configurar_fondo_login(container)
 
         card = Frame(container, bg=self.bg_card, highlightbackground=self.accent, highlightthickness=1)
         card.place(relx=0.5, rely=0.45, anchor=CENTER)
 
         Frame(card, bg=self.accent, height=5).pack(fill=X)
 
-        Label(card, text="\U0001f6e1", font=(FONT, 36),
-              bg=self.bg_card, fg=self.accent).pack(pady=(30, 5))
+        if self._logo_login_photo is not None:
+            Label(card, image=self._logo_login_photo, bg=self.bg_card, bd=0).pack(pady=(24, 5))
+        else:
+            Label(card, text="\U0001f6e1", font=(FONT, 36),
+                  bg=self.bg_card, fg=self.accent).pack(pady=(30, 5))
         Label(card, text="Bienestar y Proteccion Social", font=(FONT, 18, "bold"),
               bg=self.bg_card, fg=self.primary).pack(pady=(0, 5))
         Label(card, text="Sistema de Gestion Policial", font=(FONT, 11),
@@ -180,7 +288,7 @@ class UI:
         if modo:
             texto_footer = f"{modo} - {texto_footer}"
         Label(container, text=texto_footer,
-              font=(FONT, 8), bg=self.sidebar_bg, fg="#9db2cc").pack(side=BOTTOM, pady=15)
+              font=(FONT, 8), bg=self.sidebar_bg, fg="#e6edf7").pack(side=BOTTOM, pady=15)
 
         Button(container, text="Salir", font=(FONT, 10), bg=self.danger, fg="white",
                activebackground=self.danger_hover, activeforeground="white", relief="flat", borderwidth=0,

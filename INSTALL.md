@@ -38,18 +38,18 @@ Si no tienes `git` instalado:
 
 ---
 
-## Paso 3: Instalar Dependencia
+## Paso 3: Instalar Dependencias
 
 En el Símbolo del sistema:
 
 ```cmd
-pip install fpdf2
+pip install fpdf2 Pillow
 ```
 
 Si aparece un error, prueba con:
 
 ```cmd
-python -m pip install fpdf2
+python -m pip install fpdf2 Pillow
 ```
 
 ---
@@ -102,6 +102,9 @@ Al ejecutar por primera vez se crean automáticamente estos usuarios:
 **Error de importación "No module named 'fpdf'"**
 → Falta instalar fpdf2. Ejecuta `pip install fpdf2` nuevamente.
 
+**Error de importación "No module named 'PIL'"**
+→ Falta instalar Pillow. Ejecuta `pip install Pillow` nuevamente.
+
 **La ventana se abre y se cierra inmediatamente**
 → Ejecuta desde el Símbolo del sistema para ver el mensaje de error.
 
@@ -130,8 +133,9 @@ Si quieres llevar el programa a cualquier PC **sin instalar Python**:
 ```cmd
 build.bat
 ```
-3. Esto instalará PyInstaller y generará `dist\SistemaPolicia.exe`
-4. Ese .exe funciona en cualquier Windows 10 sin necesidad de Python ni dependencias
+3. Esto instalará PyInstaller, Pillow y generará `dist\SistemaPolicia.exe`
+4. El logo y el fondo de `src\assets\images\` se incluirán dentro del ejecutable
+5. Ese .exe funciona en cualquier Windows 10 sin necesidad de Python ni dependencias
 
 ## Opcional: Crear un Instalador
 
