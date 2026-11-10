@@ -44,6 +44,15 @@ def _ruta_recurso(*partes):
     return os.path.join(base, *partes)
 
 
+def _activar_modal(ventana):
+    try:
+        ventana.update_idletasks()
+        ventana.wait_visibility()
+        ventana.grab_set()
+    except Exception:
+        pass
+
+
 FONT = "Segoe UI"
 EDAD_MINIMA_FUNCIONARIO = 17
 
@@ -423,8 +432,10 @@ class UI:
         parrafo("Inicio: Pantalla principal que lista todos los funcionarios registrados. "
                 "Permite buscar, filtrar inactivos y acceder a las acciones de cada registro (Ver, Editar, Desactivar, Restaurar).")
         parrafo("Nuevo Funcionario: Formulario con 6 pestañas: Personales, Laborales, Plan Vivienda, "
-                "Estado Vivienda, Familiares y Balance. Antes de guardar se validan los campos obligatorios; "
-                "si falta o es inválido algún dato, se muestra un solo aviso con la lista completa.")
+                "Estado Vivienda, Familiares y Balance. Los campos obligatorios se marcan con un asterisco "
+                "rojo (*) y los condicionales con dos asteriscos dorados (**). Antes de guardar se validan "
+                "los campos obligatorios; si falta o es inválido algún dato, se muestra un solo aviso con la "
+                "lista completa.")
         parrafo("Ver Datos: Muestra la ficha completa de un funcionario con toda su información en detalle. "
                 "Desde ahí se puede imprimir, exportar a PDF, guardar TXT, editar o desactivar.")
         parrafo("Catálogos (Admin/SubAdmin): Permite agregar o eliminar valores de estado civil, jerarquía, "
@@ -1068,7 +1079,20 @@ class UI:
         Label(content, text=titulo, font=(FONT, 18, "bold"),
               bg=self.bg, fg=self.text).pack(anchor=W, pady=(0, 5))
         Label(content, text=subtitulo, font=(FONT, 10),
-              bg=self.bg, fg=self.text_sec).pack(anchor=W, pady=(0, 15))
+              bg=self.bg, fg=self.text_sec).pack(anchor=W, pady=(0, 8))
+
+        nota = Frame(content, bg="#fff8e6", highlightbackground=self.accent, highlightthickness=1)
+        nota.pack(fill=X, pady=(0, 12))
+        Label(nota, text="*", font=(FONT, 12, "bold"), bg="#fff8e6",
+              fg=self.danger).pack(side=LEFT, padx=(10, 4), pady=5)
+        Label(nota, text="Campos obligatorios", font=(FONT, 9),
+              bg="#fff8e6", fg=self.text).pack(side=LEFT)
+        Label(nota, text="**", font=(FONT, 11, "bold"), bg="#fff8e6",
+              fg=self.accent).pack(side=LEFT, padx=(14, 4))
+        Label(nota, text="Obligatorio según la opción seleccionada", font=(FONT, 9),
+              bg="#fff8e6", fg=self.text).pack(side=LEFT)
+        Label(nota, text="Sin marca: opcional", font=(FONT, 9),
+              bg="#fff8e6", fg=self.text_sec).pack(side=LEFT, padx=(14, 10))
 
         notebook = ttk.Notebook(content)
         notebook.pack(fill=BOTH, expand=True)
@@ -1180,7 +1204,6 @@ class UI:
             top.transient(self.root)
             top.resizable(False, False)
             top.configure(bg=self.bg_card)
-            top.grab_set()
 
             cab = Frame(top, bg=self.bg_card)
             cab.pack(fill=X, padx=10, pady=(10, 4))
@@ -1270,6 +1293,7 @@ class UI:
                    relief="solid", borderwidth=1, cursor="hand2", command=top.destroy).pack(side=RIGHT, ipady=2, ipadx=8)
 
             render()
+            _activar_modal(top)
 
         boton.config(command=abrir)
 
@@ -1398,8 +1422,8 @@ class UI:
         def texto(entrada):
             return (entrada.get() or "").strip()
 
-        requerir(texto(self.input_nombre), "Datos personales: Nombre")
-        requerir(texto(self.input_apellido), "Datos personales: Apellido")
+        requerir(texto(self.input_nombre), "Datos personales: Nombres")
+        requerir(texto(self.input_apellido), "Datos personales: Apellidos")
         fecha_nacimiento = texto(self.input_fecha_nacimiento)
         requerir(fecha_nacimiento, "Datos personales: Fecha de nacimiento")
         if fecha_nacimiento:
@@ -1476,14 +1500,45 @@ class UI:
         monto_requerido(self._bal_entries["ingreso_familiar_adicional"], "Balance: Ingreso familiar adicional")
 
         for idx, (_, inputs) in enumerate(self.familiares_panels, start=1):
-            requerir(texto(inputs["nombre"]), f"Familiar #{idx}: Nombre")
-            requerir(texto(inputs["apellido"]), f"Familiar #{idx}: Apellido")
+            requerir(texto(inputs["nombre"]), f"Familiar #{idx}: Nombres")
+            requerir(texto(inputs["apellido"]), f"Familiar #{idx}: Apellidos")
             requerir(inputs["parentesco"].get(), f"Familiar #{idx}: Parentesco")
             edad = texto(inputs["edad"])
             if edad and not self._edad_familiar_valida(edad):
                 faltantes.append(f"Familiar #{idx}: Edad (1 a 200)")
 
         return faltantes
+
+    def _etiqueta(self, parent, texto, obligatorio=False, condicional=False, **opciones):
+        bg = opciones.pop("bg", self.bg_card)
+        width = opciones.pop("width", None)
+        font_texto = opciones.get("font", (FONT, 10))
+        contenedor = Frame(parent, bg=bg)
+
+        marca = "*" if obligatorio else ("**" if condicional else "")
+        if marca and width is not None:
+            Label(contenedor, text=texto, bg=bg, **opciones).pack(side=LEFT)
+        else:
+            if width is not None:
+                opciones["width"] = width
+            Label(contenedor, text=texto, bg=bg, **opciones).pack(side=LEFT)
+
+        if marca:
+            color = self.danger if obligatorio else self.accent
+            font_marca = font_texto
+            if isinstance(font_marca, tuple) and len(font_marca) >= 2:
+                font_marca = (font_marca[0], font_marca[1], "bold")
+            else:
+                font_marca = (FONT, 10, "bold")
+            Label(contenedor, text=marca, font=font_marca, bg=bg, fg=color).pack(side=LEFT, padx=(2, 4))
+
+            if width is not None:
+                relleno = max(0, int(width) - len(texto) - len(marca))
+                if relleno:
+                    Label(contenedor, text="0" * relleno, font=font_texto,
+                          bg=bg, fg=bg).pack(side=LEFT)
+
+        return contenedor
 
     def _crear_tab_personales(self):
         p = self.tab_personales
@@ -1527,7 +1582,7 @@ class UI:
             return widgets
 
         # Cedula: prefijo "V-" fijo + hasta 8 digitos
-        Label(p, text="Cedula:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Cedula:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
         ced_frame = Frame(p, bg=self.bg_card, highlightbackground=self.border, highlightthickness=1)
         ced_frame.grid(row=2, column=0, columnspan=2, sticky=EW, padx=(0, 10))
         Label(ced_frame, text="V-", font=(FONT, 11, "bold"), bg=self.bg_card, fg=self.text).pack(side=LEFT, padx=(6, 2))
@@ -1536,19 +1591,19 @@ class UI:
             validate="key", validatecommand=(self.root.register(self._validar_cedula), "%P"))
         self.input_cedula.pack(side=LEFT, fill=X, expand=True, ipady=3)
 
-        Label(p, text="Nombre:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Nombres:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
         self.input_nombre = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
                                   highlightbackground=self.border, highlightthickness=1,
                                   validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         self.input_nombre.grid(row=2, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Apellido:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=4, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Apellidos:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=4, sticky=W, pady=(6, 2))
         self.input_apellido = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
                                     highlightbackground=self.border, highlightthickness=1,
                                     validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
         self.input_apellido.grid(row=2, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Fecha Nacimiento:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=0, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Fecha Nacimiento:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=3, column=0, sticky=W, pady=(6, 2))
         self.input_fecha_nacimiento = self._crear_date_picker(p, on_change=self._calcular_edad)
         self.input_fecha_nacimiento.grid(row=4, column=0, columnspan=2, sticky=EW, padx=(0, 10))
 
@@ -1560,14 +1615,14 @@ class UI:
         self.input_edad.grid(row=4, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
         # Operadora (prefijo) y luego Telefono (7 digitos)
-        Label(p, text="Operadora:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=4, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Operadora:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=3, column=4, sticky=W, pady=(6, 2))
         prefijos = [op["prefijo"] for op in cargar_operadoras()]
         orden = ["412", "422", "414", "424", "416", "426"]
         prefijos = [x for x in orden if x in prefijos] + [x for x in prefijos if x not in orden]
         self.input_operadora = ttk.Combobox(p, values=prefijos, font=(FONT, 11), state="readonly", width=6)
         self.input_operadora.grid(row=4, column=4, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Telefono:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=3, column=5, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Telefono:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=3, column=5, sticky=W, pady=(6, 2))
         self.input_telefono = Entry(
             p, font=(FONT, 11), relief="solid", borderwidth=1,
             highlightbackground=self.border, highlightthickness=1,
@@ -1581,18 +1636,18 @@ class UI:
         self.input_altura.config(validate="key", validatecommand=(self.root.register(self._validar_altura), "%P"))
         self.input_peso.bind("<FocusOut>", lambda e: self._normalizar_decimal(self.input_peso))
         self.input_altura.bind("<FocusOut>", lambda e: self._normalizar_decimal(self.input_altura))
-        Label(p, text="Estado Civil:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=5, column=4, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Estado Civil:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=5, column=4, sticky=W, pady=(6, 2))
         self.input_estado_civil = ttk.Combobox(p, values=valores_catalogo("estado_civil"), font=(FONT, 11), state="readonly")
         self.input_estado_civil.grid(row=6, column=4, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Genero:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=7, column=0, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Genero:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=7, column=0, sticky=W, pady=(6, 2))
         self.input_genero = ttk.Combobox(p, values=["Masculino", "Femenino"], font=(FONT, 11), state="readonly")
         self.input_genero.grid(row=8, column=0, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
         Label(p, text="Direccion", font=(FONT, 12, "bold"), bg=self.bg_card, fg=self.primary).grid(
             row=9, column=0, columnspan=6, sticky=W, pady=(14, 4))
 
-        Label(p, text="Municipio:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=10, column=0, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Municipio:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=10, column=0, sticky=W, pady=(6, 2))
         self.input_residencia_municipio = ttk.Combobox(
             p, values=valores_catalogo("municipio"), font=(FONT, 11), state="readonly")
         self.input_residencia_municipio.grid(row=11, column=0, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
@@ -1602,7 +1657,7 @@ class UI:
         self.input_residencia_pueblo = ttk.Combobox(p, values=[], font=(FONT, 11), state="readonly")
         self.input_residencia_pueblo.grid(row=11, column=2, columnspan=2, sticky=EW, padx=(0, 10), ipady=3)
 
-        Label(p, text="Direccion:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=12, column=0, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Direccion:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=12, column=0, sticky=W, pady=(6, 2))
         self.input_residencia = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
                                       highlightbackground=self.border, highlightthickness=1)
         self.input_residencia.grid(row=13, column=0, columnspan=6, sticky=EW, padx=(0, 10), ipady=3)
@@ -1615,20 +1670,20 @@ class UI:
         Label(p, text="Datos Laborales", font=(FONT, 13, "bold"),
               bg=self.bg_card, fg=self.primary).grid(row=0, column=0, columnspan=4, sticky=W, pady=(15, 10))
 
-        Label(p, text="Jerarquia:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Jerarquia:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=0, sticky=W, pady=(6, 2))
         self.input_jerarquia = ttk.Combobox(p, values=valores_catalogo("jerarquia"), font=(FONT, 11), state="readonly")
         self.input_jerarquia.grid(row=2, column=0, sticky=EW, padx=(0, 15), ipady=3)
 
-        Label(p, text="Tiempo Servicio:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=1, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Tiempo Servicio:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=1, sticky=W, pady=(6, 2))
         opciones_tiempo = [f"{n} año" if n == 1 else f"{n} años" for n in range(1, 36)]
         self.input_tiempo_servicio = ttk.Combobox(p, values=opciones_tiempo, font=(FONT, 11), state="readonly")
         self.input_tiempo_servicio.grid(row=2, column=1, sticky=EW, padx=(0, 15), ipady=3)
 
-        Label(p, text="Lugar Servicio:", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Lugar Servicio:", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=2, sticky=W, pady=(6, 2))
         self.input_lugar_servicio = ttk.Combobox(p, values=valores_catalogo("lugar_servicio"), font=(FONT, 11), state="readonly")
         self.input_lugar_servicio.grid(row=2, column=2, sticky=EW, padx=(0, 15), ipady=3)
 
-        Label(p, text="Ingreso Mensual (Bs.):", font=(FONT, 10), bg=self.bg_card, fg=self.text).grid(row=1, column=3, sticky=W, pady=(6, 2))
+        self._etiqueta(p, "Ingreso Mensual (Bs.):", obligatorio=True, font=(FONT, 10), fg=self.text).grid(row=1, column=3, sticky=W, pady=(6, 2))
         self.input_ingreso_mensual = Entry(p, font=(FONT, 11), relief="solid", borderwidth=1,
                                            highlightbackground=self.border, highlightthickness=1,
                                            validate="key", validatecommand=(self.root.register(self._validar_ingreso), "%P"))
@@ -1668,18 +1723,20 @@ class UI:
             w.bind("<MouseWheel>", _on_mousewheel_pv)
 
         self._plan_entries = {}
-        def combobox_row(parent, label, valores, es_readonly=True):
+        def combobox_row(parent, label, valores, es_readonly=True, obligatorio=False, condicional=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=3)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, condicional=condicional,
+                           font=(FONT, 10), fg=self.text, width=20, anchor=W).pack(side=LEFT)
             cb = ttk.Combobox(r, values=valores, font=(FONT, 11), state="readonly" if es_readonly else NORMAL)
             cb.pack(side=LEFT, ipady=3, fill=X, expand=True)
             return cb
 
-        def entry_row(parent, label):
+        def entry_row(parent, label, obligatorio=False, condicional=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=3)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, condicional=condicional,
+                           font=(FONT, 10), fg=self.text, width=20, anchor=W).pack(side=LEFT)
             e = Entry(r, font=(FONT, 11), relief="solid", borderwidth=1,
                       highlightbackground=self.border, highlightthickness=1)
             e.pack(side=LEFT, ipady=3, fill=X, expand=True)
@@ -1691,10 +1748,11 @@ class UI:
             f.pack(fill=X, padx=15, pady=6)
             return f
 
-        def radio_group(parent, label, var, options):
+        def radio_group(parent, label, var, options, obligatorio=False, condicional=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=3)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, condicional=condicional,
+                           font=(FONT, 10), fg=self.text, width=20, anchor=W).pack(side=LEFT)
             botones = []
             for val in options:
                 rb = Radiobutton(r, text=val, variable=var, value=val, font=(FONT, 9),
@@ -1707,37 +1765,40 @@ class UI:
         sf = scroll_frame
 
         f = seccion(sf, "Terreno")
-        radio_group(f, "Terreno Propio:", self.posee_terreno, ["SI", "NO"])
+        radio_group(f, "Terreno Propio:", self.posee_terreno, ["SI", "NO"], obligatorio=True)
         
         municipios = valores_catalogo("municipio")
-        self.input_municipio = combobox_row(f, "Municipio:", municipios)
-        self.input_pueblo = combobox_row(f, "Pueblo/Sector:", [])
+        self.input_municipio = combobox_row(f, "Municipio:", municipios, condicional=True)
+        self.input_pueblo = combobox_row(f, "Pueblo/Sector:", [], condicional=True)
         self.input_municipio.bind("<<ComboboxSelected>>", self._filtrar_pueblos)
 
         f = seccion(sf, "Vivienda")
-        radio_group(f, "Posee Vivienda:", self.posee_vivienda, ["SI", "NO"])
-        self.input_condicion_vivienda = combobox_row(f, "Condicion:", valores_catalogo("condicion_vivienda"))
+        radio_group(f, "Posee Vivienda:", self.posee_vivienda, ["SI", "NO"], obligatorio=True)
+        self.input_condicion_vivienda = combobox_row(f, "Condicion:", valores_catalogo("condicion_vivienda"), condicional=True)
 
         f = seccion(sf, "Necesidad Habitacional")
-        radio_group(f, "Necesidad:", self.necesidad_habiacion, ["Vivienda", "Construccion", "Sustitucion", "Mejoramiento"])
+        radio_group(f, "Necesidad:", self.necesidad_habiacion, ["Vivienda", "Construccion", "Sustitucion", "Mejoramiento"], obligatorio=True)
 
         f = seccion(sf, "Gestion Organismo Oficial")
-        radio_group(f, "Gestion:", self.gestion_organismo, ["SI", "NO"])
+        radio_group(f, "Gestion:", self.gestion_organismo, ["SI", "NO"], obligatorio=True)
+        Label(f, text="Si la gestion es SI, indique al menos un organismo publico o privado.",
+              font=(FONT, 9), bg=self.bg_card, fg=self.text_sec).pack(anchor=W, pady=(0, 4))
         self._radios_organismo_publico = radio_group(
             f, "Organismo Publico:", self.organismo_publico,
-            self._opciones_organismo_publico)
-        self._fila_organismo_publico_otro, self.input_organismo_publico_otro = entry_row(f, "Especifique:")
+            self._opciones_organismo_publico, condicional=True)
+        self._fila_organismo_publico_otro, self.input_organismo_publico_otro = entry_row(f, "Especifique:", condicional=True)
         self._fila_organismo_publico_otro.pack_forget()
         self._radios_organismo_privado = radio_group(
             f, "Organismo Privado:", self.organismo_privado,
-            self._opciones_organismo_privado)
-        self._fila_organismo_privado_otro, self.input_organismo_privado_otro = entry_row(f, "Especifique:")
+            self._opciones_organismo_privado, condicional=True)
+        self._fila_organismo_privado_otro, self.input_organismo_privado_otro = entry_row(f, "Especifique:", condicional=True)
         self._fila_organismo_privado_otro.pack_forget()
 
         f = seccion(sf, "Fecha")
         r = Frame(f, bg=self.bg_card)
         r.pack(fill=X, pady=3)
-        Label(r, text="Fecha Gestion:", font=(FONT, 10), bg=self.bg_card, fg=self.text, width=20, anchor=W).pack(side=LEFT)
+        self._etiqueta(r, "Fecha Gestion:", condicional=True, font=(FONT, 10), fg=self.text,
+                       width=20, anchor=W).pack(side=LEFT)
         self._plan_entries["fecha_gestion"] = self._crear_date_picker(r)
         self._plan_entries["fecha_gestion"].pack(side=LEFT, ipady=3, fill=X, expand=True)
 
@@ -1839,10 +1900,11 @@ class UI:
 
         self._estado_entries = {}
 
-        def entry_row(parent, label, numerico=False):
+        def entry_row(parent, label, numerico=False, obligatorio=False, condicional=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=2)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=22, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, condicional=condicional,
+                           font=(FONT, 10), fg=self.text, width=22, anchor=W).pack(side=LEFT)
             e = Entry(r, font=(FONT, 11), relief="solid", borderwidth=1,
                       highlightbackground=self.border, highlightthickness=1)
             if numerico:
@@ -1850,10 +1912,11 @@ class UI:
             e.pack(side=LEFT, ipady=3, fill=X, expand=True)
             return e
 
-        def combobox_row(parent, label, valores):
+        def combobox_row(parent, label, valores, obligatorio=False, condicional=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=2)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=22, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, condicional=condicional,
+                           font=(FONT, 10), fg=self.text, width=22, anchor=W).pack(side=LEFT)
             cb = ttk.Combobox(r, values=valores, font=(FONT, 11), state="readonly")
             cb.pack(side=LEFT, ipady=3, fill=X, expand=True)
             return cb
@@ -1864,10 +1927,11 @@ class UI:
             f.pack(fill=X, padx=15, pady=6)
             return f
 
-        def radio_group(parent, label, var, options):
+        def radio_group(parent, label, var, options, obligatorio=False, condicional=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=2)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=22, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, condicional=condicional,
+                           font=(FONT, 10), fg=self.text, width=22, anchor=W).pack(side=LEFT)
             for val in options:
                 Radiobutton(r, text=val, variable=var, value=val, font=(FONT, 9),
                             bg=self.bg_card, fg=self.text, activebackground=self.bg_card,
@@ -1878,23 +1942,23 @@ class UI:
               bg=self.bg_card, fg=self.primary).pack(anchor=W, pady=(15, 15), padx=15)
 
         f = seccion("Tenencia de Tierra")
-        radio_group(f, "Tipo:", self.tenencia_tierra, ["Propia", "Proceso Pago", "Cedida", "Invadida", "Otra"])
+        radio_group(f, "Tipo:", self.tenencia_tierra, ["Propia", "Proceso Pago", "Cedida", "Invadida", "Otra"], obligatorio=True)
         self._estado_entries["tenencia_tierra_otra"] = combobox_row(
-            f, "Especifique:", self._opciones_tenencia_tierra_otra)
+            f, "Especifique:", self._opciones_tenencia_tierra_otra, condicional=True)
 
         f = seccion("Ocupacion")
         self._estado_entries["tiempo_ocupacion"] = combobox_row(
-            f, "Tiempo de Ocupación:", self._opciones_tiempo_ocupacion)
+            f, "Tiempo de Ocupación:", self._opciones_tiempo_ocupacion, obligatorio=True)
 
         f = seccion("Ambientes")
         Label(f, text="Solo números enteros del 0 al 10", font=(FONT, 9),
               bg=self.bg_card, fg=self.text_sec, anchor=W).pack(fill=X, pady=(0, 4))
-        self._estado_entries["num_sala"] = entry_row(f, "Sala:", numerico=True)
-        self._estado_entries["num_sala_comedor"] = entry_row(f, "Sala-Comedor:", numerico=True)
-        self._estado_entries["num_cocina"] = entry_row(f, "Cocina:", numerico=True)
-        self._estado_entries["num_cocina_comedor"] = entry_row(f, "Cocina-Comedor:", numerico=True)
-        self._estado_entries["num_bano"] = entry_row(f, "Baño:", numerico=True)
-        self._estado_entries["num_dormitorio"] = entry_row(f, "Dormitorios:", numerico=True)
+        self._estado_entries["num_sala"] = entry_row(f, "Sala:", numerico=True, obligatorio=True)
+        self._estado_entries["num_sala_comedor"] = entry_row(f, "Sala-Comedor:", numerico=True, obligatorio=True)
+        self._estado_entries["num_cocina"] = entry_row(f, "Cocina:", numerico=True, obligatorio=True)
+        self._estado_entries["num_cocina_comedor"] = entry_row(f, "Cocina-Comedor:", numerico=True, obligatorio=True)
+        self._estado_entries["num_bano"] = entry_row(f, "Baño:", numerico=True, obligatorio=True)
+        self._estado_entries["num_dormitorio"] = entry_row(f, "Dormitorios:", numerico=True, obligatorio=True)
         self._estado_entries["num_lavadero"] = entry_row(f, "Lavadero:", numerico=True)
         self._estado_entries["num_patio_terraza"] = entry_row(f, "Patio / Terraza:", numerico=True)
         self._estado_entries["num_frente_porche"] = entry_row(f, "Frente / Porche:", numerico=True)
@@ -1921,7 +1985,7 @@ class UI:
         serv_check("Telefono:", "serv_telefono")
         serv_check("Ninguno:", "serv_ninguno")
         serv_check("Otros:", "serv_otro")
-        self._estado_entries["serv_especifico"] = entry_row(f, "Especifique:")
+        self._estado_entries["serv_especifico"] = entry_row(f, "Especifique:", condicional=True)
 
         self._mat_pared_vars = {}
         self._mat_techo_vars = {}
@@ -2008,10 +2072,11 @@ class UI:
             f.pack(fill=X, padx=15, pady=6)
             return f
 
-        def entry_row(parent, label):
+        def entry_row(parent, label, obligatorio=False):
             r = Frame(parent, bg=self.bg_card)
             r.pack(fill=X, pady=3)
-            Label(r, text=label, font=(FONT, 10), bg=self.bg_card, fg=self.text, width=24, anchor=W).pack(side=LEFT)
+            self._etiqueta(r, label, obligatorio=obligatorio, font=(FONT, 10), fg=self.text,
+                           width=24, anchor=W).pack(side=LEFT)
             e = Entry(r, font=(FONT, 11), relief="solid", borderwidth=1,
                       highlightbackground=self.border, highlightthickness=1)
             e.pack(side=LEFT, ipady=3, fill=X, expand=True)
@@ -2019,8 +2084,8 @@ class UI:
 
         f = seccion("Ingresos")
         self._bal_entries = {}
-        self._bal_entries["ingreso_trabajador"] = entry_row(f, "Ingreso del trabajador:")
-        self._bal_entries["ingreso_familiar_adicional"] = entry_row(f, "Ingreso familiar (adicional):")
+        self._bal_entries["ingreso_trabajador"] = entry_row(f, "Ingreso del trabajador:", obligatorio=True)
+        self._bal_entries["ingreso_familiar_adicional"] = entry_row(f, "Ingreso familiar (adicional):", obligatorio=True)
         self._bal_entries["total_ingreso_familiar"] = entry_row(f, "Total ingreso familiar:")
         self._bal_entries["egreso_grupo_familiar"] = entry_row(f, "Egreso del grupo familiar:")
         self._bal_entries["disponibilidad_economica"] = entry_row(f, "Disponibilidad económica:")
@@ -2051,35 +2116,8 @@ class UI:
 
         def _editar_egreso(event=None):
             sel = tree.selection()
-            if not sel:
-                return
-            rubro = sel[0]
-            monto_actual, obs_actual = tree.item(rubro, "values")[1], tree.item(rubro, "values")[2]
-            win = Toplevel(p)
-            win.title(f"Egreso — {rubro}")
-            win.configure(bg=self.bg_card)
-            win.transient(self.root)
-            win.grab_set()
-            win.geometry("400x180")
-            Label(win, text=rubro, font=(FONT, 12, "bold"),
-                  bg=self.bg_card, fg=self.primary).pack(pady=(15, 10))
-            r1 = Frame(win, bg=self.bg_card); r1.pack(fill=X, padx=15)
-            Label(r1, text="Monto:", font=(FONT, 10), bg=self.bg_card, fg=self.text, width=12, anchor=W).pack(side=LEFT)
-            e_monto = Entry(r1, font=(FONT, 11), relief="solid", borderwidth=1)
-            e_monto.pack(side=LEFT, fill=X, expand=True, ipady=3)
-            e_monto.insert(0, monto_actual)
-            r2 = Frame(win, bg=self.bg_card); r2.pack(fill=X, padx=15, pady=(8, 0))
-            Label(r2, text="Observación:", font=(FONT, 10), bg=self.bg_card, fg=self.text, width=12, anchor=W).pack(side=LEFT)
-            e_obs = Entry(r2, font=(FONT, 11), relief="solid", borderwidth=1)
-            e_obs.pack(side=LEFT, fill=X, expand=True, ipady=3)
-            e_obs.insert(0, obs_actual)
-
-            def _guardar():
-                tree.item(rubro, values=(rubro, e_monto.get().strip() or "0", e_obs.get().strip()))
-                self._recalcular_balance()
-                win.destroy()
-            Button(win, text="Guardar", font=(FONT, 10, "bold"), bg=self.success, fg="white",
-                   relief="flat", borderwidth=0, cursor="hand2", command=_guardar).pack(pady=12, ipady=4)
+            if sel:
+                self._abrir_editor_egreso(tree, sel[0])
 
         tree.bind("<Double-1>", _editar_egreso)
         Label(sf, text="Doble clic sobre un rubro para editar monto/observación",
@@ -2090,6 +2128,38 @@ class UI:
         self.input_total_ingreso_familiar = self._bal_entries["total_ingreso_familiar"]
         self.input_egreso_grupo_familiar = self._bal_entries["egreso_grupo_familiar"]
         self.input_disponibilidad_economica = self._bal_entries["disponibilidad_economica"]
+
+    def _abrir_editor_egreso(self, tree, rubro):
+        monto_actual, obs_actual = tree.item(rubro, "values")[1], tree.item(rubro, "values")[2]
+        win = Toplevel(self.root)
+        win.title(f"Egreso — {rubro}")
+        win.configure(bg=self.bg_card)
+        win.transient(self.root)
+        win.geometry("400x180")
+        Label(win, text=rubro, font=(FONT, 12, "bold"),
+              bg=self.bg_card, fg=self.primary).pack(pady=(15, 10))
+        r1 = Frame(win, bg=self.bg_card); r1.pack(fill=X, padx=15)
+        Label(r1, text="Monto:", font=(FONT, 10), bg=self.bg_card, fg=self.text, width=12, anchor=W).pack(side=LEFT)
+        e_monto = Entry(r1, font=(FONT, 11), relief="solid", borderwidth=1)
+        e_monto.pack(side=LEFT, fill=X, expand=True, ipady=3)
+        e_monto.insert(0, monto_actual)
+        r2 = Frame(win, bg=self.bg_card); r2.pack(fill=X, padx=15, pady=(8, 0))
+        Label(r2, text="Observación:", font=(FONT, 10), bg=self.bg_card, fg=self.text, width=12, anchor=W).pack(side=LEFT)
+        e_obs = Entry(r2, font=(FONT, 11), relief="solid", borderwidth=1)
+        e_obs.pack(side=LEFT, fill=X, expand=True, ipady=3)
+        e_obs.insert(0, obs_actual)
+
+        def _guardar():
+            tree.item(rubro, values=(rubro, e_monto.get().strip() or "0", e_obs.get().strip()))
+            self._recalcular_balance()
+            win.destroy()
+
+        Button(win, text="Guardar", font=(FONT, 10, "bold"), bg=self.success, fg="white",
+               relief="flat", borderwidth=0, cursor="hand2", command=_guardar).pack(pady=12, ipady=4)
+        win.bind("<Return>", lambda e: _guardar())
+        win.bind("<Escape>", lambda e: win.destroy())
+        _activar_modal(win)
+        e_monto.focus_set()
 
     def _recalcular_balance(self):
         total_ingreso, egreso_total, disponibilidad = calcular_balance(
@@ -2122,7 +2192,9 @@ class UI:
         Label(p, text="Grupo Familiar", font=(FONT, 13, "bold"),
               bg=self.bg_card, fg=self.primary).pack(anchor=W, pady=(15, 5), padx=15)
         Label(p, text="Agregue los familiares del funcionario", font=(FONT, 10),
-              bg=self.bg_card, fg=self.text_sec).pack(anchor=W, padx=15, pady=(0, 10))
+              bg=self.bg_card, fg=self.text_sec).pack(anchor=W, padx=15, pady=(0, 4))
+        Label(p, text="Nombres, Apellidos y Parentesco (marcados con *) son obligatorios. Edad es opcional (1–200).",
+              font=(FONT, 9), bg=self.bg_card, fg=self.text_sec).pack(anchor=W, padx=15, pady=(0, 10))
 
         # Scrollable container for family member cards
         canvas_container = Frame(p, bg=self.bg_card)
@@ -2188,24 +2260,24 @@ class UI:
 
         inputs = {}
 
-        def make_campo(fila, label, col, colspan=1):
-            Label(body, text=label, font=(FONT, 9), bg=self.bg_card, fg=self.text).grid(row=fila, column=col, sticky=W, padx=(0, 2))
+        def make_campo(fila, label, col, colspan=1, obligatorio=False):
+            self._etiqueta(body, label, obligatorio=obligatorio, font=(FONT, 9), fg=self.text).grid(row=fila, column=col, sticky=W, padx=(0, 2))
             e = Entry(body, font=(FONT, 10), relief="solid", borderwidth=1,
                       highlightbackground=self.border, highlightthickness=1)
             e.grid(row=fila + 1, column=col, columnspan=colspan, sticky=EW, padx=(0, 8), ipady=2)
             return e
 
-        def make_combobox(fila, label, col, valores, colspan=1):
-            Label(body, text=label, font=(FONT, 9), bg=self.bg_card, fg=self.text).grid(row=fila, column=col, sticky=W, padx=(0, 2))
+        def make_combobox(fila, label, col, valores, colspan=1, obligatorio=False):
+            self._etiqueta(body, label, obligatorio=obligatorio, font=(FONT, 9), fg=self.text).grid(row=fila, column=col, sticky=W, padx=(0, 2))
             cb = ttk.Combobox(body, values=valores, font=(FONT, 10), state="readonly")
             cb.grid(row=fila + 1, column=col, columnspan=colspan, sticky=EW, padx=(0, 8), ipady=2)
             return cb
 
-        inputs["nombre"] = make_campo(0, "Nombre:", 0)
+        inputs["nombre"] = make_campo(0, "Nombres:", 0, obligatorio=True)
         inputs["nombre"].config(validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
-        inputs["apellido"] = make_campo(0, "Apellido:", 2)
+        inputs["apellido"] = make_campo(0, "Apellidos:", 2, obligatorio=True)
         inputs["apellido"].config(validate="key", validatecommand=(self.root.register(self._validar_nombre), "%P"))
-        inputs["parentesco"] = make_combobox(0, "Parentesco:", 4, valores_catalogo("parentesco"))
+        inputs["parentesco"] = make_combobox(0, "Parentesco:", 4, valores_catalogo("parentesco"), obligatorio=True)
         inputs["edad"] = make_campo(2, "Edad:", 0)
         inputs["edad"].config(validate="key", validatecommand=(self.root.register(self._validar_edad_familiar), "%P"))
         inputs["genero"] = make_combobox(2, "Genero:", 2, ["Masculino", "Femenino"])
@@ -2635,7 +2707,6 @@ class UI:
         win.minsize(700, 440)
         win.configure(bg=self.bg_card)
         win.transient(self.root)
-        win.grab_set()
 
         pie = Frame(win, bg=self.bg_card)
         pie.pack(side=BOTTOM, fill=X, pady=(0, 10))
@@ -2651,7 +2722,6 @@ class UI:
             dlg.configure(bg=self.bg_card)
             dlg.transient(win)
             dlg.resizable(False, False)
-            dlg.grab_set()
 
             entradas = {}
             for i, (clave, etiqueta) in enumerate(campos):
@@ -2702,12 +2772,10 @@ class UI:
             Button(barra, text="Cancelar", font=(FONT, 10), bg=self.text_sec, fg="white",
                    relief="flat", borderwidth=0, cursor="hand2", command=cancelar).pack(side=LEFT, ipady=4)
 
+            _activar_modal(dlg)
             entradas[list(entradas)[0]].focus_set()
             dlg.wait_window()
-            try:
-                win.grab_set()
-            except Exception:
-                pass
+            _activar_modal(win)
             return resultado if resultado["ok"] else None
 
         def crear_tab_catalogo(tipo, titulo):
@@ -2870,6 +2938,7 @@ class UI:
                relief="flat", borderwidth=0, cursor="hand2", command=eliminar_op).pack(side=LEFT, ipady=4)
 
         refrescar_op()
+        _activar_modal(win)
 
     def gestionar_usuarios(self):
         win = Toplevel(self.root)
@@ -2877,7 +2946,6 @@ class UI:
         win.geometry("500x400")
         win.configure(bg=self.bg_card)
         win.transient(self.root)
-        win.grab_set()
 
         Label(win, text="Usuarios del Sistema", font=(FONT, 14, "bold"),
               bg=self.bg_card, fg=self.primary).pack(pady=(15, 10))
@@ -2910,6 +2978,7 @@ class UI:
                relief="flat", borderwidth=0, cursor="hand2", command=lambda: None).pack(side=LEFT, padx=5, ipady=4)
         Button(btn_frame, text="Cerrar", font=(FONT, 10), bg=self.text_sec, fg="white",
                relief="flat", borderwidth=0, cursor="hand2", command=win.destroy).pack(side=RIGHT, padx=5, ipady=4)
+        _activar_modal(win)
 
     def ver_auditoria(self):
         win = Toplevel(self.root)
@@ -2917,7 +2986,6 @@ class UI:
         win.geometry("700x500")
         win.configure(bg=self.bg_card)
         win.transient(self.root)
-        win.grab_set()
 
         Label(win, text="Auditoria del Sistema", font=(FONT, 14, "bold"),
               bg=self.bg_card, fg=self.primary).pack(pady=(15, 10))
@@ -2940,6 +3008,7 @@ class UI:
 
         Button(win, text="Cerrar", font=(FONT, 10), bg=self.text_sec, fg="white",
                relief="flat", borderwidth=0, cursor="hand2", command=win.destroy).pack(pady=(0, 15), ipady=4)
+        _activar_modal(win)
 
 
 if __name__ == "__main__":

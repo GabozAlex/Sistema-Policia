@@ -170,7 +170,7 @@ def main():
             avisos["warn"].clear()
             app.guardar_funcionario()
             assert avisos["warn"], avisos
-            assert "Familiar #1: Nombre" in avisos["warn"][-1][1]
+            assert "Familiar #1: Nombres" in avisos["warn"][-1][1]
             assert not [f for f in logic.cargar_funcionarios(incluir_inactivos=True)
                         if f.cedula == CEDULA_NORM]
             inputs["nombre"].insert(0, "Hijo")
