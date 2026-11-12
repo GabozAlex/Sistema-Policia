@@ -1953,17 +1953,37 @@ class UI:
         f = seccion("Ambientes")
         Label(f, text="Solo números enteros del 0 al 10", font=(FONT, 9),
               bg=self.bg_card, fg=self.text_sec, anchor=W).pack(fill=X, pady=(0, 4))
-        self._estado_entries["num_sala"] = entry_row(f, "Sala:", numerico=True, obligatorio=True)
-        self._estado_entries["num_sala_comedor"] = entry_row(f, "Sala-Comedor:", numerico=True, obligatorio=True)
-        self._estado_entries["num_cocina"] = entry_row(f, "Cocina:", numerico=True, obligatorio=True)
-        self._estado_entries["num_cocina_comedor"] = entry_row(f, "Cocina-Comedor:", numerico=True, obligatorio=True)
-        self._estado_entries["num_bano"] = entry_row(f, "Baño:", numerico=True, obligatorio=True)
-        self._estado_entries["num_dormitorio"] = entry_row(f, "Dormitorios:", numerico=True, obligatorio=True)
-        self._estado_entries["num_lavadero"] = entry_row(f, "Lavadero:", numerico=True)
-        self._estado_entries["num_patio_terraza"] = entry_row(f, "Patio / Terraza:", numerico=True)
-        self._estado_entries["num_frente_porche"] = entry_row(f, "Frente / Porche:", numerico=True)
-        self._estado_entries["num_garaje_estacionamiento"] = entry_row(f, "Garaje / Estacionamiento:", numerico=True)
-        self._estado_entries["num_deposito_almacen"] = entry_row(f, "Depósito / Almacén:", numerico=True)
+
+        grilla_ambientes = Frame(f, bg=self.bg_card)
+        grilla_ambientes.pack(fill=X)
+
+        def ambiente_row(fila, clave, label, obligatorio=False):
+            self._etiqueta(grilla_ambientes, label, obligatorio=obligatorio,
+                           font=(FONT, 10), fg=self.text).grid(
+                row=fila, column=0, sticky=W, padx=(0, 10), pady=2)
+            e = Entry(grilla_ambientes, width=8, justify=CENTER, font=(FONT, 11),
+                      relief="solid", borderwidth=1,
+                      highlightbackground=self.border, highlightthickness=1,
+                      validate="key",
+                      validatecommand=(self.root.register(self._validar_entero_0_10), "%P"))
+            e.grid(row=fila, column=1, sticky=W, pady=2)
+            self._estado_entries[clave] = e
+
+        ambientes = [
+            ("num_sala", "Sala:", True),
+            ("num_sala_comedor", "Sala-Comedor:", True),
+            ("num_cocina", "Cocina:", True),
+            ("num_cocina_comedor", "Cocina-Comedor:", True),
+            ("num_bano", "Baño:", True),
+            ("num_dormitorio", "Dormitorios:", True),
+            ("num_lavadero", "Lavadero:", False),
+            ("num_patio_terraza", "Patio / Terraza:", False),
+            ("num_frente_porche", "Frente / Porche:", False),
+            ("num_garaje_estacionamiento", "Garaje / Estacionamiento:", False),
+            ("num_deposito_almacen", "Depósito / Almacén:", False),
+        ]
+        for fila, (clave, label, obligatorio) in enumerate(ambientes):
+            ambiente_row(fila, clave, label, obligatorio)
 
         self._serv_vars = {}
         f = seccion("Servicios de la Vivienda")
